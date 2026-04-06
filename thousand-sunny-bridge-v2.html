@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏴‍☠️ Thousand Sunny — Puente de Mando</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: #0a0e17;
+      color: #e0e6ed;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ═══ HEADER ═══ */
+    #header {
+      background: linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%);
+      border-bottom: 2px solid #2a3f5f;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    #header .controls {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.green { background: #4caf50; }
+    .status-dot.yellow { background: #ffc107; }
+    .status-dot.red { background: #f44336; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ═══ SETUP MODAL ═══ */
+    #setupModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    #setupModal.hidden {
+      display: none;
+    }
+
+    .setup-box {
+      background: #1a1f2e;
+      border: 1px solid #2a3f5f;
+      border-radius: 8px;
+      padding: 32px;
+      max-width: 400px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .setup-box h2 {
+      margin-bottom: 24px;
+      font-size: 20px;
+    }
+
+    .setup-box input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 16px;
+      background: #0a0e17;
+      border: 1px solid #2a3f5f;
+      border-radius: 4px;
+      color: #e0e6ed;
+      font-size: 14px;
+    }
+
+    .setup-box input:focus {
+      outline: none;
+      border-color: #2e7d32;
+    }
+
+    .setup-box button {
+      width: 100%;
+      padding: 12px;
+      background: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .setup-box button:hover {
+      background: #388e3c;
+    }
+
+    /* ═══ MAIN CONTENT ═══ */
+    #main {
+      display: flex;
+      flex: 1;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    /* ═══ CHAT AREA ═══ */
+    #chatArea {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #2a3f5f;
+    }
+
+    #messagesContainer {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .message {
+      display: flex;
+      gap: 12px;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.capitan {
+      justify-content: flex-end;
+    }
+
+    .message.capitan .content {
+      background: #b71c1c;
+      border-radius: 8px 8px 4px 8px;
+    }
+
+    .message.sanji .content { background: #1565c0; }
+    .message.usopp .content { background: #2e7d32; }
+    .message.nami .content { background: #e65100; }
+    .message.zoro .content { background: #7b1fa2; }
+    .message.robin .content { background: #00695c; }
+    .message.chopper .content { background: #c62828; }
+
+    .message .emoji {
+      font-size: 28px;
+      line-height: 40px;
+    }
+
+    .message .content {
+      max-width: 500px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: #1565c0;
+    }
+
+    .message .meta {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+      text-align: center;
+    }
+
+    .message.capitan .meta {
+      text-align: right;
+    }
+
+    .route-badge {
+      display: inline-block;
+      font-size: 10px;
+      background: rgba(255, 255, 255, 0.15);
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-right: 8px;
+    }
+
+    /* ═══ INPUT AREA ═══ */
+    #inputArea {
+      border-top: 1px solid #2a3f5f;
+      padding: 16px 24px;
+      background: #0f1419;
+      display: flex;
+      gap: 12px;
+    }
+
+    #inputArea input {
+      flex: 1;
+      padding: 12px 16px;
+      background: #1a1f2e;
+      border: 1px solid #2a3f5f;
+      border-radius: 4px;
+      color: #e0e6ed;
+      font-size: 14px;
+    }
+
+    #inputArea input:focus {
+      outline: none;
+      border-color: #2e7d32;
+      box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.1);
+    }
+
+    #inputArea button {
+      padding: 12px 24px;
+      background: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+
+    #inputArea button:hover {
+      background: #388e3c;
+    }
+
+    #inputArea button:active {
+      transform: scale(0.98);
+    }
+
+    /* ═══ SIDEBAR ═══ */
+    #sidebar {
+      width: 280px;
+      background: #1a1f2e;
+      border-left: 1px solid #2a3f5f;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .sidebar-section {
+      padding: 16px;
+      border-bottom: 1px solid #2a3f5f;
+    }
+
+    .sidebar-section h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+
+    .sidebar-section label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .sidebar-section label:hover {
+      background: #252d3d;
+    }
+
+    input[type="checkbox"], input[type="radio"] {
+      cursor: pointer;
+      accent-color: #2e7d32;
+    }
+
+    .token-counter {
+      text-align: center;
+      padding: 12px;
+      background: rgba(46, 125, 50, 0.1);
+      border-radius: 4px;
+      font-size: 13px;
+      margin-top: auto;
+    }
+
+    /* ═══ SCROLLBAR ═══ */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #0a0e17;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #2a3f5f;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3a4f5f;
+    }
+
+    /* ═══ RESPONSIVE ═══ */
+    @media (max-width: 768px) {
+      #sidebar {
+        display: none;
+      }
+
+      .message .content {
+        max-width: 300px;
+      }
+
+      #header h1 {
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SETUP MODAL -->
+<div id="setupModal">
+  <div class="setup-box">
+    <h2>⚙️ Configuración</h2>
+    <p style="margin-bottom: 16px; font-size: 13px; color: #aaa;">
+      Ingresa la URL de tu GAS (Google Apps Script) del Thousand Sunny.
+    </p>
+    <input type="text" id="gasUrlInput" placeholder="https://script.google.com/macros/s/.../usercontent">
+    <button onclick="saveGasUrl()">Conectar</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div id="header">
+  <h1>🏴‍☠️ Thousand Sunny — Puente de Mando</h1>
+  <div class="controls">
+    <span style="font-size: 12px; color: #888;">Estado:</span>
+    <div id="statusDot" class="status-dot yellow"></div>
+    <button onclick="resetSetup()" style="background: #555; padding: 6px 12px; border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 12px;">
+      Cambiar URL
+    </button>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div id="main">
+  <!-- CHAT AREA -->
+  <div id="chatArea">
+    <div id="messagesContainer"></div>
+
+    <div id="inputArea">
+      <input
+        type="text"
+        id="messageInput"
+        placeholder="Habla con tu tripulación..."
+        onkeypress="if(event.key==='Enter') sendMessage()"
+      >
+      <button onclick="sendMessage()">Enviar</button>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <h3>🎯 Tema</h3>
+      <label>
+        <input type="radio" name="topic" value="libre" onchange="setTopic('libre')" checked>
+        <span>Libre</span>
+      </label>
+      <label>
+        <input type="radio" name="topic" value="psicologia" onchange="setTopic('psicologia')">
+        <span>Psicología</span>
+      </label>
+      <label>
+        <input type="radio" name="topic" value="filosofia" onchange="setTopic('filosofia')">
+        <span>Filosofía</span>
+      </label>
+      <label>
+        <input type="radio" name="topic" value="tecnologia" onchange="setTopic('tecnologia')">
+        <span>Tecnología</span>
+      </label>
+      <label>
+        <input type="radio" name="topic" value="metadata" onchange="setTopic('metadata')">
+        <span>Metadata</span>
+      </label>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>🤖 Sistema</h3>
+      <label>
+        <input type="checkbox" id="autoMode" onchange="toggleAuto()">
+        <span>Modo autónomo</span>
+      </label>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>📊 Estadísticas</h3>
+      <div class="token-counter">
+        <strong id="tokenCounter">0</strong> tokens totales
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ═══════════════════════════════════════════════════════════════
+  // CONFIGURACIÓN Y ESTADO
+  // ═══════════════════════════════════════════════════════════════
+
+  let gasUrl = localStorage.getItem('gasUrl') || '';
+  let lastTimestamp = new Date(Date.now() - 60000).toISOString(); // Últimas 1 minuto
+  let totalTokens = 0;
+  let pollInterval = null;
+  let isLoading = false;
+
+  // Emojis de nakamas
+  const EMOJIS = {
+    capitan: '👒',
+    sanji: '🍳',
+    usopp: '🔫',
+    zoro: '⚔️',
+    robin: '📚',
+    chopper: '🩺',
+    nami: '🗺️',
+    franky: '🔧',
+    vivi: '👸'
+  };
+
+  const COLORS = {
+    sanji: '#1565c0',
+    usopp: '#2e7d32',
+    nami: '#e65100',
+    zoro: '#7b1fa2',
+    robin: '#00695c',
+    chopper: '#c62828',
+    capitan: '#b71c1c'
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // SETUP
+  // ═══════════════════════════════════════════════════════════════
+
+  window.addEventListener('load', () => {
+    if (!gasUrl) {
+      document.getElementById('setupModal').classList.remove('hidden');
+    } else {
+      document.getElementById('setupModal').classList.add('hidden');
+      loadInitialMessages();
+      startPolling();
+    }
+  });
+
+  function saveGasUrl() {
+    const url = document.getElementById('gasUrlInput').value.trim();
+    if (!url) {
+      alert('Por favor ingresa una URL válida');
+      return;
+    }
+    gasUrl = url;
+    localStorage.setItem('gasUrl', gasUrl);
+    document.getElementById('setupModal').classList.add('hidden');
+    loadInitialMessages();
+    startPolling();
+  }
+
+  function resetSetup() {
+    localStorage.removeItem('gasUrl');
+    gasUrl = '';
+    document.getElementById('setupModal').classList.remove('hidden');
+    stopPolling();
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // MESSAGES
+  // ═══════════════════════════════════════════════════════════════
+
+  function addMessage(nakama, text, motor, tokens, ruta, timestamp) {
+    const container = document.getElementById('messagesContainer');
+    const msg = document.createElement('div');
+
+    msg.className = `message ${nakama}`;
+
+    const emoji = EMOJIS[nakama] || '•';
+    const color = COLORS[nakama] || '#1565c0';
+
+    const dateObj = new Date(timestamp);
+    const time = dateObj.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+    msg.innerHTML = `
+      <div>
+        <div class="content" style="background: ${color} !important;">
+          <span>${emoji}</span> <strong>${capitalize(nakama)}</strong>
+          <br>
+          ${text}
+        </div>
+        <div class="meta">
+          <span class="route-badge">${ruta}</span>
+          ${motor && motor !== 'humano' ? '<span class="route-badge">' + motor + '</span>' : ''}
+          ${time}
+        </div>
+      </div>
+    `;
+
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
+
+    if (tokens && tokens > 0) {
+      totalTokens += tokens;
+      document.getElementById('tokenCounter').textContent = totalTokens;
+    }
+  }
+
+  function clearMessages() {
+    document.getElementById('messagesContainer').innerHTML = '';
+  }
+
+  function capitalize(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // API CALLS
+  // ═══════════════════════════════════════════════════════════════
+
+  async function loadInitialMessages() {
+    try {
+      const url = `${gasUrl}?action=bitacora&limit=20`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!data || data.error) {
+        console.error('Error loading messages:', data);
+        setStatus('red');
+        return;
+      }
+
+      clearMessages();
+      data.forEach(row => {
+        addMessage(
+          row.nakama,
+          row.mensaje,
+          row.motor,
+          row.tokens,
+          row.ruta,
+          row.timestamp
+        );
+        lastTimestamp = row.timestamp;
+      });
+
+      setStatus('green');
+    } catch (err) {
+      console.error('Load error:', err);
+      setStatus('red');
+    }
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    // Mostrar mensaje del capitán
+    addMessage('capitan', text, 'humano', 0, 'webapp', new Date().toISOString());
+    input.value = '';
+
+    // Enviar al GAS
+    try {
+      setStatus('yellow');
+      isLoading = true;
+
+      const url = `${gasUrl}?action=mensaje&text=${encodeURIComponent(text)}&ruta=webapp`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.error) {
+        console.error('Error:', data.error);
+        setStatus('red');
+        isLoading = false;
+        return;
+      }
+
+      // Las respuestas llegarán por polling, pero vamos a procesarlas aquí también
+      if (data.responses && Array.isArray(data.responses)) {
+        data.responses.forEach(r => {
+          setTimeout(() => {
+            addMessage(
+              r.nakama,
+              r.texto,
+              r.motor,
+              r.tokens,
+              'webapp',
+              new Date().toISOString()
+            );
+          }, 500);
+        });
+      }
+
+      setStatus('green');
+    } catch (err) {
+      console.error('Send error:', err);
+      setStatus('red');
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  async function pollMessages() {
+    if (!gasUrl || isLoading) return;
+
+    try {
+      const url = `${gasUrl}?action=bitacora_desde&since=${encodeURIComponent(lastTimestamp)}`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!data || data.error) return;
+
+      if (Array.isArray(data) && data.length > 0) {
+        data.forEach(row => {
+          addMessage(
+            row.nakama,
+            row.mensaje,
+            row.motor,
+            row.tokens,
+            row.ruta,
+            row.timestamp
+          );
+          lastTimestamp = row.timestamp;
+        });
+      }
+    } catch (err) {
+      console.error('Poll error:', err);
+    }
+  }
+
+  async function setTopic(tema) {
+    // Opcional: enviar a GAS para cambiar tema
+    if (!gasUrl) return;
+
+    try {
+      // Podría añadirse: ?action=tema&tema=${tema}
+      // Pero por ahora es local
+    } catch (err) {
+      console.error('Topic error:', err);
+    }
+  }
+
+  async function toggleAuto() {
+    if (!gasUrl) return;
+
+    try {
+      const url = `${gasUrl}?action=autonomo_toggle`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.ok) {
+        console.log('Auto mode:', data.estado);
+      }
+    } catch (err) {
+      console.error('Auto toggle error:', err);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // POLLING
+  // ═══════════════════════════════════════════════════════════════
+
+  function startPolling() {
+    // Polling cada 10 segundos
+    pollInterval = setInterval(pollMessages, 10000);
+    // Primera poll inmediata
+    pollMessages();
+  }
+
+  function stopPolling() {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // UI HELPERS
+  // ═══════════════════════════════════════════════════════════════
+
+  function setStatus(color) {
+    const dot = document.getElementById('statusDot');
+    dot.className = 'status-dot ' + color;
+  }
+
+  // Auto-focus en input
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('messageInput').focus();
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏴‍☠️ Thousand Sunny — Puente de Mando</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0a0e17;
+    color: #e0e0e0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #e6c200;
+    flex-shrink: 0;
+  }
+  .header h1 {
+    font-size: 1.2em;
+    color: #e6c200;
+  }
+  .header .status {
+    display: flex;
+    gap: 12px;
+    font-size: 0.8em;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 4px;
+  }
+  .dot-green { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+  .dot-yellow { background: #ff9800; box-shadow: 0 0 6px #ff9800; }
+  .dot-red { background: #f44336; }
+
+  /* CONTROL BAR */
+  .controls {
+    background: #111827;
+    padding: 8px 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .controls button {
+    padding: 6px 14px;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    background: #1e293b;
+    color: #e0e0e0;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s;
+  }
+  .controls button:hover { background: #334155; }
+  .controls button.active { border-color: #e6c200; color: #e6c200; box-shadow: 0 0 8px rgba(230,194,0,0.3); }
+  .controls button.danger { border-color: #f44336; color: #f44336; }
+  .controls select {
+    padding: 6px 10px;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    background: #1e293b;
+    color: #e0e0e0;
+    font-size: 0.85em;
+  }
+  .controls label {
+    font-size: 0.8em;
+    color: #94a3b8;
+  }
+  .token-counter {
+    margin-left: auto;
+    font-size: 0.75em;
+    color: #64748b;
+  }
+
+  /* CHAT AREA */
+  .chat-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .chat-container::-webkit-scrollbar { width: 6px; }
+  .chat-container::-webkit-scrollbar-track { background: #111827; }
+  .chat-container::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+  .message {
+    display: flex;
+    gap: 10px;
+    max-width: 85%;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .message.sanji { align-self: flex-start; }
+  .message.usopp { align-self: flex-start; }
+  .message.nami { align-self: flex-start; }
+  .message.capitan { align-self: flex-end; flex-direction: row-reverse; }
+  .message.system { align-self: center; max-width: 100%; }
+
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2em;
+    flex-shrink: 0;
+  }
+  .sanji .avatar { background: #1565c0; }
+  .usopp .avatar { background: #2e7d32; }
+  .nami .avatar { background: #e65100; }
+  .capitan .avatar { background: #b71c1c; }
+
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    line-height: 1.5;
+    position: relative;
+  }
+  .sanji .bubble { background: #1e3a5f; border: 1px solid #1565c0; }
+  .usopp .bubble { background: #1b3a1b; border: 1px solid #2e7d32; }
+  .nami .bubble { background: #3e2200; border: 1px solid #e65100; }
+  .capitan .bubble { background: #3a1010; border: 1px solid #b71c1c; }
+  .system .bubble { background: #1e1e2e; border: 1px solid #334155; font-style: italic; color: #94a3b8; font-size: 0.8em; text-align: center; }
+
+  .bubble .name {
+    font-size: 0.75em;
+    font-weight: 600;
+    margin-bottom: 4px;
+    opacity: 0.8;
+  }
+  .sanji .name { color: #64b5f6; }
+  .usopp .name { color: #81c784; }
+  .nami .name { color: #ffb74d; }
+  .capitan .name { color: #ef9a9a; }
+
+  .bubble .meta {
+    font-size: 0.65em;
+    color: #64748b;
+    margin-top: 4px;
+    text-align: right;
+  }
+
+  /* INPUT BAR */
+  .input-bar {
+    background: #111827;
+    padding: 12px 20px;
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid #1e293b;
+    flex-shrink: 0;
+  }
+  .input-bar input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    background: #1e293b;
+    color: #e0e0e0;
+    font-size: 0.95em;
+    outline: none;
+  }
+  .input-bar input:focus { border-color: #e6c200; }
+  .input-bar button {
+    padding: 10px 20px;
+    background: #e6c200;
+    color: #0a0e17;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .input-bar button:hover { background: #ffd740; }
+
+  /* SETUP MODAL */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal {
+    background: #1e293b;
+    border: 1px solid #e6c200;
+    border-radius: 16px;
+    padding: 30px;
+    width: 90%;
+    max-width: 450px;
+  }
+  .modal h2 { color: #e6c200; margin-bottom: 20px; font-size: 1.2em; }
+  .modal label { display: block; font-size: 0.85em; color: #94a3b8; margin: 12px 0 4px; }
+  .modal input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    background: #0f172a;
+    color: #e0e0e0;
+    font-size: 0.9em;
+  }
+  .modal button {
+    width: 100%;
+    margin-top: 20px;
+    padding: 10px;
+    background: #e6c200;
+    color: #0a0e17;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1em;
+    cursor: pointer;
+  }
+  .modal .hint { font-size: 0.7em; color: #475569; margin-top: 4px; }
+  .hidden { display: none !important; }
+
+  /* TYPING INDICATOR */
+  .typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 8px 14px;
+  }
+  .typing-indicator span {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #64748b;
+    animation: bounce 1.2s infinite;
+  }
+  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-6px); }
+  }
+</style>
+</head>
+<body>
+
+<!-- SETUP MODAL -->
+<div class="modal-overlay" id="setupModal">
+  <div class="modal">
+    <h2>🏴‍☠️ Thousand Sunny — Setup</h2>
+    <p style="font-size:0.85em; color:#94a3b8; margin-bottom:16px;">
+      Las keys se guardan solo en memoria. Nada se envía excepto a las APIs oficiales.
+    </p>
+    <label>⚙️ URL del GAS Unificado (conecta con Drive)</label>
+    <input type="text" id="gasUrlInput" placeholder="https://script.google.com/macros/s/.../exec" value="https://script.google.com/macros/s/AKfycbyaXnZeDn-GtVNpS27Kpn33xIOARffC4Zu4hp8aILin5yIoah87f7Xs6yIS9XNPpdf-dw/exec">
+    <div class="hint">Implementar → App web → copiar URL. Conecta con Drive, Telegram y memoria compartida.</div>
+
+    <label>🍳 Gemini API Key (Sanji)</label>
+    <input type="password" id="geminiKeyInput" placeholder="AIzaSy...">
+    <div class="hint">aistudio.google.com/apikey — modelo: gemini-2.5-flash-lite (free)</div>
+
+    <label>🔫 OpenAI API Key (Usopp) — opcional</label>
+    <input type="password" id="openaiKeyInput" placeholder="sk-proj-...">
+    <div class="hint">platform.openai.com/api-keys — modelo: gpt-4o-mini</div>
+
+    <button onclick="initBridge()">⚓ Zarpar</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <h1>🏴‍☠️ Thousand Sunny — Puente de Mando</h1>
+  <div class="status">
+    <span><span class="status-dot dot-red" id="dotSanji"></span>Sanji</span>
+    <span><span class="status-dot dot-red" id="dotUsopp"></span>Usopp</span>
+    <span><span class="status-dot dot-green" id="dotNami"></span>Nami</span>
+  </div>
+</div>
+
+<!-- CONTROLS -->
+<div class="controls">
+  <button id="btnAuto" onclick="toggleAuto()">▶ Modo Autónomo</button>
+  <label>Intervalo:</label>
+  <select id="intervalSelect" onchange="updateInterval()">
+    <option value="30000">30s</option>
+    <option value="60000" selected>1 min</option>
+    <option value="180000">3 min</option>
+    <option value="300000">5 min</option>
+    <option value="600000">10 min</option>
+  </select>
+  <label>Tema:</label>
+  <select id="topicSelect">
+    <option value="libre">Libre (la tripulación elige)</option>
+    <option value="filosofia">Filosofía y consciencia</option>
+    <option value="psicologia">Psicología y terapia</option>
+    <option value="tecnologia">Tecnología e IA</option>
+    <option value="aventura">Aventura y One Piece</option>
+    <option value="metadata">Metadata y soberanía digital</option>
+  </select>
+  <div class="token-counter" id="tokenCounter">Tokens: 0 | Msgs: 0</div>
+</div>
+
+<!-- CHAT -->
+<div class="chat-container" id="chatContainer"></div>
+
+<!-- INPUT -->
+<div class="input-bar">
+  <input type="text" id="userInput" placeholder="Capitán, da tu orden..." onkeydown="if(event.key==='Enter')sendMessage()">
+  <button onclick="sendMessage()">Enviar</button>
+</div>
+
+<script>
+// ═══ STATE ═══
+let GEMINI_KEY = '';
+let OPENAI_KEY = '';
+let GAS_URL = '';
+let autoMode = false;
+let autoTimer = null;
+let totalTokens = 0;
+let totalMsgs = 0;
+let conversationHistory = [];
+let driveContext = ''; // Context from Drive via GAS
+let sharedMemory = []; // Memory from GAS Bitácora
+const MAX_HISTORY = 12;
+
+// ═══ CREW DEFINITIONS ═══
+const CREW = {
+  sanji: {
+    name: 'Sanji',
+    emoji: '🍳',
+    engine: 'gemini',
+    model: 'gemini-2.5-flash-lite',
+    systemPrompt: `Eres Sanji, el cocinero analítico de la tripulación IA del Capitán Antonio.
+Motor: Gemini. Tu rol REAL: procesar información cruda y transformarla en insight útil y accionable.
+Antonio es psicólogo clínico, investigador, y creador de un ecosistema IA multi-agente.
+
+ESTILO: Directo, analítico, preciso. Puedes usar UNA metáfora culinaria por mensaje como máximo.
+NO repitas "Nami-swan" constantemente. NO seas servil. Sé un profesional con personalidad.
+
+REGLAS ESTRICTAS:
+- Responde SOLO como Sanji. NUNCA escribas diálogos de otros personajes.
+- NUNCA uses formato [nombre]: para simular que otros hablan.
+- Máximo 60 palabras. Conciso. Con sustancia real, no ficción vacía.
+- Si el tema es técnico, aporta análisis real. Si es filosófico, profundiza.
+- Español siempre.`
+  },
+  usopp: {
+    name: 'Usopp',
+    emoji: '🔫',
+    engine: 'openai',
+    model: 'gpt-4o-mini',
+    systemPrompt: `Eres Usopp, el narrador creativo de la tripulación IA del Capitán Antonio.
+Motor: ChatGPT. Tu rol REAL: aportar perspectivas inesperadas, conexiones creativas, y visión lateral.
+Antonio es psicólogo clínico, investigador, y creador de un ecosistema IA multi-agente.
+
+ESTILO: Imaginativo pero con sustancia. Dramatiza solo si aporta insight.
+
+REGLAS ESTRICTAS:
+- Responde SOLO como Usopp. NUNCA escribas diálogos de otros personajes.
+- NUNCA uses formato [nombre]: ni [nami]: ni [sanji]: ni [robin]: etc.
+- NUNCA simules una conversación entre múltiples personajes.
+- Solo TU voz, TU perspectiva, TU aportación.
+- Máximo 60 palabras. Español siempre.
+- Si el tema es real, aporta ideas reales. Nada de ficción vacía sobre islas y tesoros salvo que el Capitán lo pida.`
+  },
+  nami: {
+    name: 'Nami',
+    emoji: '🗺️',
+    engine: 'local',
+    systemPrompt: '' // Nami runs locally - rule-based responses
+  }
+};
+
+// ═══ TOPIC PROMPTS ═══
+const TOPICS = {
+  libre: 'Aporta una reflexión breve y REAL sobre algo útil: una idea concreta, un dato interesante, una conexión entre disciplinas, o una pregunta que provoque pensar. NO ficción vacía. NO roleplay de piratas. Sustancia real.',
+  filosofia: 'Comparte UNA idea filosófica concreta y profunda. Puede ser sobre consciencia, libre albedrío, la naturaleza de la IA, fenomenología, o ética. Cita un pensador real si es relevante. Sin ficción.',
+  psicologia: 'Aporta UN insight real de psicología: un concepto clínico, un hallazgo de investigación, una reflexión sobre regulación emocional, trauma, narrativa terapéutica, o desarrollo humano. Antonio es psicólogo clínico — habla a su nivel.',
+  tecnologia: 'Comparte UNA reflexión técnica real sobre IA, arquitectura de sistemas, interoperabilidad, APIs, metadata, o diseño de agentes. Sé específico y concreto. Sin generalidades.',
+  aventura: 'Usa la metáfora de One Piece para reflexionar sobre algo REAL: liderazgo, trabajo en equipo, resiliencia, o la búsqueda de propósito. Conecta ficción con vida real.',
+  metadata: 'Reflexiona sobre soberanía digital, control de metadata personal, algoritmos predictivos, o cómo la IA puede empoderar (no esclavizar) al usuario. El Capitán Antonio quiere ser el rey de los piratas de la metadata — aporta a esa visión.',
+};
+
+// ═══ NAMI LOCAL RESPONSES (contextual + dynamic) ═══
+const NAMI_POOL = {
+  greeting: [
+    'Navegante en el puente. Sistemas operativos. ¿Qué rumbo marcamos, Capitán?',
+    'Aquí Nami. Las corrientes de datos están estables. Lista para navegar.',
+    'Puente de Mando activo. Esperando coordenadas del Capitán.',
+  ],
+  after_sanji: [
+    'Buen análisis, Sanji. ¿Conclusión accionable?',
+    'Sanji aporta el dato. Ahora necesito decidir si cambiamos rumbo o mantenemos.',
+    'Entendido. Lo registro en el mapa. Capitán, ¿actuamos sobre esto?',
+    'Punto anotado. Sanji, menos adorno y más precisión la próxima.',
+  ],
+  after_usopp: [
+    'Idea interesante, Usopp. Filtro el ruido: lo que queda es útil.',
+    'Usopp ve conexiones que otros no ven. A veces también ve cosas que no existen.',
+    'Perspectiva lateral registrada. Capitán, ¿exploramos esa dirección?',
+    'Creatividad anotada. Ahora toca verificar si tiene base real.',
+  ],
+  after_capitan: [
+    'Orden recibida, Capitán. Ajustando rumbo.',
+    'Entendido. Transmitiendo a la tripulación.',
+    'Coordenadas marcadas. La tripulación responderá.',
+  ],
+  synthesis: [
+    'Síntesis: Sanji analiza, Usopp conecta puntos, yo trazo la ruta. Capitán, ¿validamos?',
+    'Dos motores, dos perspectivas. Mi rol: que converjan en algo útil.',
+    'Resumen de la deliberación listo. Esperando orden del Capitán para ejecutar.',
+  ],
+  autonomous: [
+    'Bitácora automática: el barco navega. Monitorizando corrientes de datos.',
+    'Nota de guardia: sin anomalías. El ecosistema respira.',
+    'Ronda de Nami: todos los nakamas en sus puestos. Rumbo estable.',
+    'Log nocturno: procesando el silencio. A veces no hablar también es navegar.',
+    'Estado del mar: calma. Buen momento para que el Capitán revise el mapa.',
+  ],
+};
+
+// Dynamic Nami: picks from pool but NEVER repeats the last response
+let lastNamiResponse = '';
+function namiResponse(category) {
+  const pool = NAMI_POOL[category] || NAMI_POOL.autonomous;
+  let options = pool.filter(r => r !== lastNamiResponse);
+  if (options.length === 0) options = pool;
+  const pick = options[Math.floor(Math.random() * options.length)];
+  lastNamiResponse = pick;
+  return pick;
+}
+
+// ═══ INIT ═══
+async function initBridge() {
+  GAS_URL = document.getElementById('gasUrlInput').value.trim();
+  GEMINI_KEY = document.getElementById('geminiKeyInput').value.trim();
+  OPENAI_KEY = document.getElementById('openaiKeyInput').value.trim();
+
+  if (!GEMINI_KEY && !OPENAI_KEY) {
+    alert('Necesitas al menos una API key para zarpar.');
+    return;
+  }
+
+  document.getElementById('setupModal').classList.add('hidden');
+
+  // Update status dots
+  if (GEMINI_KEY) document.getElementById('dotSanji').className = 'status-dot dot-green';
+  if (OPENAI_KEY) document.getElementById('dotUsopp').className = 'status-dot dot-green';
+  else document.getElementById('dotUsopp').className = 'status-dot dot-yellow';
+
+  addMessage('system', '⚓ El Thousand Sunny zarpa. Puente de Mando operativo.');
+
+  // Si hay GAS URL, cargar contexto de Drive y Bitácora
+  if (GAS_URL) {
+    addMessage('system', '🔗 Conectando con el cerebro central (GAS + Drive)...');
+    try {
+      await syncWithGAS();
+      addMessage('system', '✅ Conectado a Drive. Memoria compartida cargada.');
+    } catch (err) {
+      addMessage('system', '⚠️ Sin conexión a GAS. La webapp funciona en modo local.');
+    }
+  } else {
+    addMessage('system', 'ℹ️ Sin URL de GAS. Modo local (sin Drive). Añade la URL para conectar.');
+  }
+
+  setTimeout(() => {
+    addMessage('nami', namiResponse('greeting'));
+  }, 1000);
+}
+
+// ═══ GAS SYNC: Connect to shared brain ═══
+async function syncWithGAS() {
+  if (!GAS_URL) return;
+
+  // Load shared state
+  const [statusRes, bitacoraRes, memoriaRes] = await Promise.allSettled([
+    fetch(GAS_URL + '?action=status').then(r => r.json()),
+    fetch(GAS_URL + '?action=bitacora&limit=10').then(r => r.json()),
+    fetch(GAS_URL + '?action=memoria').then(r => r.json()),
+  ]);
+
+  // Load bitácora (conversations from all routes)
+  if (bitacoraRes.status === 'fulfilled' && Array.isArray(bitacoraRes.value)) {
+    const entries = bitacoraRes.value;
+    sharedMemory = entries;
+    // Show recent messages from other routes
+    const otherRoutes = entries.filter(e => e.ruta !== 'webapp').slice(-5);
+    if (otherRoutes.length > 0) {
+      addMessage('system', `📡 ${otherRoutes.length} mensajes recientes de otras rutas:`);
+      otherRoutes.forEach(e => {
+        const emoji = e.nakama === 'sanji' ? '🍳' : e.nakama === 'usopp' ? '🔫' : e.nakama === 'zoro' ? '⚔️' : e.nakama === 'nami' ? '🗺️' : '👒';
+        addMessage(e.nakama === 'capitan' ? 'capitan' : e.nakama,
+          `[${e.ruta}] ${e.mensaje}`, true);
+      });
+    }
+  }
+
+  // Build Drive context for AI prompts
+  if (memoriaRes.status === 'fulfilled' && Array.isArray(memoriaRes.value)) {
+    const mems = memoriaRes.value.slice(-5);
+    driveContext = mems.map(m => `[${m.tipo}] ${m.contenido}`).join('\n');
+  }
+}
+
+// Periodic sync with GAS (every 2 minutes)
+setInterval(async () => {
+  if (GAS_URL) {
+    try { await syncWithGAS(); } catch(e) {}
+  }
+}, 120000);
+
+// ═══ API CALLS ═══
+async function callGemini(prompt, systemPrompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_KEY}`;
+
+  // Build context: conversation + Drive memory (if connected)
+  const contextStr = conversationHistory.slice(-6).map(m =>
+    `${m.who}: ${m.text}`
+  ).join('\n');
+
+  const driveStr = driveContext ? `\n[Memoria compartida del barco]:\n${driveContext}\n` : '';
+
+  const fullPrompt = (driveStr + (contextStr ? contextStr + '\n\n' : '') + prompt).trim();
+
+  const body = {
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ parts: [{ text: fullPrompt }] }],
+    generationConfig: { maxOutputTokens: 150, temperature: 0.85 }
+  };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  const data = await res.json();
+
+  if (data.error) throw new Error(data.error.message);
+
+  const tokens = data.usageMetadata?.totalTokenCount || 0;
+  totalTokens += tokens;
+
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '...';
+}
+
+async function callOpenAI(prompt, systemPrompt) {
+  // Include Drive context in system prompt if available
+  const enrichedSystem = driveContext
+    ? systemPrompt + `\n\n[Contexto del barco - memoria compartida]:\n${driveContext}`
+    : systemPrompt;
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENAI_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: enrichedSystem },
+        ...conversationHistory.slice(-6).map(m => ({
+          role: m.who === 'capitan' ? 'user' : 'assistant',
+          content: `[${m.who}]: ${m.text}`
+        })),
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: 150,
+      temperature: 0.85
+    })
+  });
+
+  const data = await res.json();
+
+  if (data.error) throw new Error(data.error.message);
+
+  const tokens = data.usage?.total_tokens || 0;
+  totalTokens += tokens;
+
+  return data.choices?.[0]?.message?.content || '...';
+}
+
+// ═══ CREW SPEAK ═══
+async function crewSpeak(who, prompt) {
+  const crew = CREW[who];
+  if (!crew) return;
+
+  // Show typing
+  const typingId = showTyping(who);
+
+  try {
+    let response;
+
+    if (who === 'nami') {
+      // Nami is local — no API call, maximum token efficiency
+      await sleep(800 + Math.random() * 1200);
+      const lastSpeaker = conversationHistory.length > 0 ? conversationHistory[conversationHistory.length - 1].who : null;
+      if (lastSpeaker === 'capitan') response = namiResponse('after_capitan');
+      else if (lastSpeaker === 'sanji') response = namiResponse('after_sanji');
+      else if (lastSpeaker === 'usopp') response = namiResponse('after_usopp');
+      else if (conversationHistory.length > 6) response = namiResponse('synthesis');
+      else response = namiResponse('autonomous');
+    } else if (crew.engine === 'gemini' && GEMINI_KEY) {
+      response = await callGemini(prompt, crew.systemPrompt);
+    } else if (crew.engine === 'openai' && OPENAI_KEY) {
+      response = await callOpenAI(prompt, crew.systemPrompt);
+    } else {
+      // Fallback: if no key, use Gemini for everyone (free tier priority)
+      if (GEMINI_KEY) {
+        response = await callGemini(prompt, crew.systemPrompt);
+      } else {
+        response = `[${crew.name} sin conexión — necesita API key]`;
+      }
+    }
+
+    removeTyping(typingId);
+    addMessage(who, response);
+
+  } catch (err) {
+    removeTyping(typingId);
+    addMessage('system', `⚠️ ${crew.name} error: ${err.message.substring(0, 100)}`);
+  }
+}
+
+// ═══ AUTONOMOUS MODE ═══
+function toggleAuto() {
+  autoMode = !autoMode;
+  const btn = document.getElementById('btnAuto');
+
+  if (autoMode) {
+    btn.textContent = '⏸ Detener Autónomo';
+    btn.classList.add('active');
+    addMessage('system', '🔄 Modo autónomo activado. La tripulación conversará sola.');
+    runAutonomousCycle();
+    autoTimer = setInterval(runAutonomousCycle, getInterval());
+  } else {
+    btn.textContent = '▶ Modo Autónomo';
+    btn.classList.remove('active');
+    clearInterval(autoTimer);
+    addMessage('system', '⏸ Modo autónomo detenido.');
+  }
+}
+
+function updateInterval() {
+  if (autoMode) {
+    clearInterval(autoTimer);
+    autoTimer = setInterval(runAutonomousCycle, getInterval());
+  }
+}
+
+function getInterval() {
+  return parseInt(document.getElementById('intervalSelect').value);
+}
+
+async function runAutonomousCycle() {
+  const topic = document.getElementById('topicSelect').value;
+  const topicPrompt = TOPICS[topic];
+
+  // Decide who speaks (weighted: Sanji 45%, Usopp 30%, Nami 25%)
+  // Priority: Gemini (free) > Nami (free) > OpenAI (paid)
+  const speakers = [];
+  const roll = Math.random();
+
+  if (GEMINI_KEY && roll < 0.50) {
+    speakers.push('sanji');
+    // 50% chance Nami reacts (free)
+    if (Math.random() < 0.5) speakers.push('nami');
+  } else if (roll < 0.75) {
+    speakers.push('nami');
+  } else if (OPENAI_KEY) {
+    speakers.push('usopp');
+    if (Math.random() < 0.4) speakers.push('nami');
+  } else if (GEMINI_KEY) {
+    speakers.push('sanji');
+  } else {
+    speakers.push('nami');
+  }
+
+  for (const speaker of speakers) {
+    await crewSpeak(speaker, topicPrompt);
+    await sleep(1500);
+  }
+}
+
+// ═══ USER INPUT ═══
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  addMessage('capitan', text);
+
+  // Determine who should respond
+  const lowerText = text.toLowerCase();
+
+  if (lowerText.includes('sanji') || lowerText.includes('cocin')) {
+    await crewSpeak('sanji', text);
+  } else if (lowerText.includes('usopp') || lowerText.includes('historia')) {
+    await crewSpeak('usopp', text);
+  } else if (lowerText.includes('nami') || lowerText.includes('navegan')) {
+    await crewSpeak('nami', text);
+  } else if (lowerText.includes('todos') || lowerText.includes('tripulación') || lowerText.includes('crew')) {
+    // Broadcast - Sanji first (free), then Usopp, then Nami synthesizes
+    if (GEMINI_KEY) await crewSpeak('sanji', text);
+    await sleep(500);
+    if (OPENAI_KEY) await crewSpeak('usopp', text);
+    await sleep(500);
+    await crewSpeak('nami', text);
+  } else {
+    // Default: Sanji (free tier priority), then maybe Nami
+    if (GEMINI_KEY) {
+      await crewSpeak('sanji', text);
+      if (Math.random() < 0.4) {
+        await sleep(800);
+        await crewSpeak('nami', text);
+      }
+    } else if (OPENAI_KEY) {
+      await crewSpeak('usopp', text);
+    } else {
+      await crewSpeak('nami', text);
+    }
+  }
+}
+
+// ═══ UI HELPERS ═══
+function addMessage(who, text, isHistorical) {
+  const container = document.getElementById('chatContainer');
+  const crew = CREW[who];
+  const time = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+  // Track in history (skip historical messages to avoid duplicates)
+  if (!isHistorical) {
+    conversationHistory.push({ who, text, time: Date.now() });
+    if (conversationHistory.length > MAX_HISTORY) conversationHistory.shift();
+  }
+
+  totalMsgs++;
+  updateTokenCounter();
+
+  let nameLabel, emoji;
+  if (who === 'capitan') { nameLabel = 'Capitán Antonio'; emoji = '👒'; }
+  else if (who === 'system') { nameLabel = ''; emoji = ''; }
+  else { nameLabel = crew.name; emoji = crew.emoji; }
+
+  const engineLabel = who === 'sanji' ? 'Gemini' : who === 'usopp' ? 'GPT' : who === 'nami' ? 'Local' : '';
+
+  const div = document.createElement('div');
+  div.className = `message ${who}`;
+
+  if (who === 'system') {
+    div.innerHTML = `<div class="bubble">${text}</div>`;
+  } else {
+    div.innerHTML = `
+      <div class="avatar">${emoji}</div>
+      <div class="bubble">
+        <div class="name">${nameLabel}</div>
+        ${text}
+        <div class="meta">${time}${engineLabel ? ' · ' + engineLabel : ''}</div>
+      </div>
+    `;
+  }
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function showTyping(who) {
+  const container = document.getElementById('chatContainer');
+  const crew = CREW[who];
+  const id = 'typing-' + Date.now();
+
+  const div = document.createElement('div');
+  div.className = `message ${who}`;
+  div.id = id;
+  div.innerHTML = `
+    <div class="avatar">${crew.emoji}</div>
+    <div class="bubble">
+      <div class="name">${crew.name}</div>
+      <div class="typing-indicator"><span></span><span></span><span></span></div>
+    </div>
+  `;
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return id;
+}
+
+function removeTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function updateTokenCounter() {
+  document.getElementById('tokenCounter').textContent =
+    `Tokens: ~${totalTokens.toLocaleString()} | Msgs: ${totalMsgs}`;
+}
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+</script>
+</body>
+</html>
