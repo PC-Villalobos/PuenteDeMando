@@ -42,6 +42,15 @@ not write arbitrary state directly.
 
 ## Readers
 
+All cabins now read state through the hub CLI as the canonical
+interface:
+
+```bash
+npm --prefix "$SUNNY_HUB_PATH" run pull [-- --summary]
+```
+
+Raw filesystem access to `state/*` remains valid as a fallback.
+
 - **Cowork webapp** (`thousand-sunny-bridge-v2.html`) - reads either
   from the Bitacora Sheet (presence layer) or from a mirrored copy of
   `shared-state.json` uploaded to Drive by Antigravity.
@@ -52,24 +61,39 @@ not write arbitrary state directly.
 
 ## Mirror to GAS (Antigravity's job)
 
-Antigravity runs a periodic job that reads `shared-state.json` and posts
-a compact summary to the Bitacora Sheet via the existing GAS endpoint:
+Antigravity runs a long-lived daemon that reads `shared-state.json`
+every 5 minutes and posts a compact summary to the Bitacora Sheet via
+the existing GAS endpoint:
 
 ```text
 GET <GAS_URL>?action=mensaje&ruta=mirror&text=<compact summary>
 ```
 
+The daemon is implemented as `scripts/mirror-loop.js` in the hub and
+started with:
+
+```bash
+npm --prefix "$SUNNY_HUB_PATH" run mirror
+```
+
 The `ruta=mirror` marker lets Cowork and Telegram filter mirror events
 from captain-authored messages. No new GAS endpoint is required.
+
+On each cycle the daemon writes a canonical checkpoint:
+
+- On success: actor `antigravity`, tag `mirror`, `--no-mirror-gas` to
+  avoid feedback loops.
+- On GAS failure: same checkpoint plus the blocker `gas-mirror-down`,
+  which is how Cowork and Telegram learn that the mirror is broken
+  without having to touch the filesystem.
 
 ## Bypassing `sync_pull_state`
 
 Any consumer that previously called `sync_pull_state` and hit
 `SYNC_VIEW_TOKEN invalido` should, until the token issue is resolved:
 
-1. Run `npm run pull -- --summary`, or
-2. If that interface is unavailable, read `state/shared-state.json`
-   directly (filesystem), or
+1. Call `npm run pull -- --summary` in the hub (canonical), or
+2. Read `state/shared-state.json` directly (fallback), or
 3. Read the last message with `ruta=mirror` from the Bitacora Sheet.
 
 No new token is required for the bypass. When `sync_pull_state` is
