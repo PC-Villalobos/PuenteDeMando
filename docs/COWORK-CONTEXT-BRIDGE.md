@@ -46,8 +46,9 @@ not write arbitrary state directly.
   from the Bitacora Sheet (presence layer) or from a mirrored copy of
   `shared-state.json` uploaded to Drive by Antigravity.
 - **Telegram bot** - reads from the Bitacora Sheet as today.
-- **Claude Code / Claude Desktop / Codex / Antigravity** - read directly
-  from the sumidero filesystem.
+- **Claude Code / Claude Desktop / Codex / Antigravity** - use
+  `npm run pull -- --summary` as the canonical read interface. Raw
+  filesystem reads from the sumidero are fallback only.
 
 ## Mirror to GAS (Antigravity's job)
 
@@ -66,8 +67,10 @@ from captain-authored messages. No new GAS endpoint is required.
 Any consumer that previously called `sync_pull_state` and hit
 `SYNC_VIEW_TOKEN invalido` should, until the token issue is resolved:
 
-1. Read `state/shared-state.json` directly (filesystem), or
-2. Read the last message with `ruta=mirror` from the Bitacora Sheet.
+1. Run `npm run pull -- --summary`, or
+2. If that interface is unavailable, read `state/shared-state.json`
+   directly (filesystem), or
+3. Read the last message with `ruta=mirror` from the Bitacora Sheet.
 
 No new token is required for the bypass. When `sync_pull_state` is
 fixed, the bypass can be deleted and consumers switched back.
