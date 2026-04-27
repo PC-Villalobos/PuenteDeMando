@@ -3,6 +3,7 @@
 ## Identity
 
 - Project: Gaia Evolution Arcade
+- IntentID: `INT-GAIA-ARCADE`
 - Repository of record: `PC-Villalobos/ThousandSunny`
 - Code path: `games/gaia-arcade/`
 - Branch: `claude/gaia-evolution-arcade-game-26U2V`
