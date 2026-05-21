@@ -1,0 +1,1306 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Sunny 2D - Puente Vivo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172026;
+      --muted: #5d6972;
+      --paper: #f7f8f4;
+      --panel: #ffffff;
+      --line: #d9e0e3;
+      --sea: #0f6f73;
+      --sea-soft: #d9f0ee;
+      --coral: #d85b69;
+      --gold: #d49b2f;
+      --green: #34865b;
+      --violet: #6553bf;
+      --blue: #3478a8;
+      --shadow: 0 18px 48px rgba(23, 32, 38, 0.14);
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(15, 111, 115, 0.08) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(216, 91, 105, 0.06) 1px, transparent 1px),
+        var(--paper);
+      background-size: 36px 36px;
+      color: var(--ink);
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 8px;
+      min-height: 40px;
+      padding: 0 14px;
+      cursor: pointer;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(15, 111, 115, 0.45);
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible {
+      outline: 3px solid rgba(216, 91, 105, 0.28);
+      outline-offset: 2px;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      min-height: 74px;
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto auto;
+      align-items: center;
+      gap: 18px;
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--ink);
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.2rem, 2vw, 1.8rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .eyebrow {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .status-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--gold);
+      box-shadow: 0 0 0 5px rgba(212, 155, 47, 0.15);
+      flex: 0 0 auto;
+    }
+
+    .status-dot.live {
+      background: var(--green);
+      box-shadow: 0 0 0 5px rgba(52, 134, 91, 0.18);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-self: end;
+    }
+
+    .primary {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #fff;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+      gap: 18px;
+      padding: 18px;
+      min-height: 0;
+    }
+
+    .deck-panel,
+    .comms-panel {
+      min-width: 0;
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .deck-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: calc(100vh - 110px);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfa;
+    }
+
+    .panel-title {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .panel-title strong {
+      font-size: 0.98rem;
+    }
+
+    .panel-title span {
+      color: var(--muted);
+      font-size: 0.82rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .segmented {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+      flex: 0 0 auto;
+    }
+
+    .segmented button {
+      border: 0;
+      border-radius: 0;
+      min-height: 36px;
+      padding: 0 12px;
+      color: var(--muted);
+    }
+
+    .segmented button.active {
+      background: var(--sea);
+      color: #fff;
+    }
+
+    .deck-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 250px;
+      gap: 14px;
+      padding: 14px;
+      min-height: 0;
+      align-items: start;
+    }
+
+    .stage {
+      min-width: 0;
+      min-height: 520px;
+      height: clamp(520px, 68vh, 640px);
+      position: relative;
+      border: 1px solid #bfd4d6;
+      border-radius: var(--radius);
+      background:
+        radial-gradient(circle at 12% 16%, rgba(255, 255, 255, 0.45) 0 4px, transparent 5px),
+        repeating-linear-gradient(135deg, rgba(15, 111, 115, 0.12) 0 10px, rgba(15, 111, 115, 0.2) 10px 18px),
+        #d7eeed;
+      overflow: hidden;
+    }
+
+    .ship {
+      position: absolute;
+      inset: 7% 6%;
+      min-height: 420px;
+    }
+
+    .hull {
+      position: absolute;
+      inset: 2% 7% 0;
+      border: 2px solid rgba(23, 32, 38, 0.18);
+      border-radius: 48% 48% 18% 18% / 30% 30% 12% 12%;
+      background:
+        linear-gradient(90deg, transparent 48.5%, rgba(23, 32, 38, 0.12) 48.5% 51.5%, transparent 51.5%),
+        linear-gradient(180deg, #fffdf7 0 12%, #edf2ef 12% 100%);
+      box-shadow: inset 0 -18px 0 rgba(212, 155, 47, 0.18), 0 24px 54px rgba(15, 111, 115, 0.22);
+    }
+
+    .mast {
+      position: absolute;
+      left: 50%;
+      top: 33%;
+      width: 16px;
+      height: 28%;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: #9d6b3f;
+      box-shadow: 0 0 0 9px rgba(212, 155, 47, 0.16);
+      z-index: 2;
+    }
+
+    .sail {
+      position: absolute;
+      left: 52%;
+      top: 24%;
+      width: min(30vw, 220px);
+      aspect-ratio: 1.1;
+      border: 1px solid rgba(23, 32, 38, 0.16);
+      border-radius: 8px 70% 8px 70%;
+      background: rgba(255, 255, 255, 0.82);
+      transform: translateX(-50%) rotate(45deg);
+      z-index: 1;
+    }
+
+    .zone {
+      position: absolute;
+      z-index: 3;
+      min-width: 86px;
+      min-height: 36px;
+      padding: 0 10px;
+      border-color: rgba(23, 32, 38, 0.2);
+      background: rgba(255, 255, 255, 0.78);
+      color: var(--ink);
+      box-shadow: 0 8px 24px rgba(23, 32, 38, 0.1);
+    }
+
+    .zone.active {
+      border-color: var(--coral);
+      background: #fff7f7;
+      color: #9a3140;
+    }
+
+    .zone[data-zone="proa"] { left: 43%; top: 6%; }
+    .zone[data-zone="mapa"] { left: 17%; top: 29%; }
+    .zone[data-zone="cocina"] { right: 17%; top: 30%; }
+    .zone[data-zone="taller"] { left: 20%; bottom: 24%; }
+    .zone[data-zone="enfermeria"] { right: 16%; bottom: 24%; }
+    .zone[data-zone="puente"] { left: 42%; bottom: 9%; }
+
+    .token {
+      position: absolute;
+      z-index: 5;
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border: 2px solid #fff;
+      border-radius: 999px;
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: 0;
+      box-shadow: 0 12px 26px rgba(23, 32, 38, 0.22);
+      transform: translate(-50%, -50%);
+      transition: left 520ms cubic-bezier(0.2, 0.85, 0.2, 1), top 520ms cubic-bezier(0.2, 0.85, 0.2, 1), box-shadow 180ms ease;
+    }
+
+    .token.active {
+      box-shadow: 0 0 0 8px rgba(216, 91, 105, 0.22), 0 12px 26px rgba(23, 32, 38, 0.22);
+    }
+
+    .token[data-crew="capitan"] { background: var(--ink); }
+    .token[data-crew="nami"] { background: var(--coral); }
+    .token[data-crew="zoro"] { background: var(--green); }
+    .token[data-crew="sanji"] { background: var(--gold); }
+    .token[data-crew="usopp"] { background: var(--violet); }
+    .token[data-crew="robin"] { background: var(--blue); }
+    .token[data-crew="chopper"] { background: #b64f8f; }
+
+    .activity-rail {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 12px;
+    }
+
+    .latest-card,
+    .metric-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 12px;
+    }
+
+    .latest-card strong,
+    .metric-card strong {
+      display: block;
+      font-size: 0.84rem;
+      margin-bottom: 8px;
+    }
+
+    .latest-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.9rem;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      border: 1px solid #e8ecef;
+      border-radius: 8px;
+      padding: 9px;
+      background: #fbfcfa;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.74rem;
+    }
+
+    .metric b {
+      display: block;
+      margin-top: 2px;
+      font-size: 1.2rem;
+      letter-spacing: 0;
+    }
+
+    .crew-list {
+      overflow: auto;
+      display: grid;
+      gap: 8px;
+      min-height: 0;
+      padding-right: 3px;
+    }
+
+    .crew-row {
+      display: grid;
+      grid-template-columns: 30px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 7px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .crew-chip {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 800;
+    }
+
+    .crew-row strong {
+      display: block;
+      font-size: 0.84rem;
+    }
+
+    .crew-row span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.72rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--line);
+    }
+
+    .crew-row.active .pulse {
+      background: var(--green);
+    }
+
+    .comms-panel {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: calc(100vh - 110px);
+    }
+
+    .gas-bar {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfa;
+    }
+
+    .gas-bar input {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 10px;
+      color: var(--ink);
+      background: var(--panel);
+    }
+
+    .chat {
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      background: linear-gradient(180deg, #ffffff 0%, #f9fbfa 100%);
+    }
+
+    .line {
+      display: grid;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--sea);
+      border-radius: 8px;
+      padding: 11px 12px;
+      background: var(--panel);
+    }
+
+    .line.capitan { border-left-color: var(--ink); }
+    .line.nami { border-left-color: var(--coral); }
+    .line.zoro { border-left-color: var(--green); }
+    .line.sanji { border-left-color: var(--gold); }
+    .line.usopp { border-left-color: var(--violet); }
+    .line.robin { border-left-color: var(--blue); }
+    .line.chopper { border-left-color: #b64f8f; }
+
+    .line-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .line-head b {
+      color: var(--ink);
+      font-size: 0.88rem;
+    }
+
+    .aside {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+
+    .speech {
+      margin: 0;
+      color: var(--ink);
+      line-height: 1.48;
+      font-size: 0.95rem;
+      overflow-wrap: anywhere;
+    }
+
+    .composer {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfa;
+    }
+
+    .composer textarea {
+      width: 100%;
+      min-height: 58px;
+      max-height: 160px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--ink);
+      background: var(--panel);
+    }
+
+    .send-stack {
+      display: grid;
+      grid-template-rows: auto auto;
+      gap: 8px;
+      min-width: 122px;
+    }
+
+    .armed {
+      color: #9a3140;
+      border-color: rgba(216, 91, 105, 0.45);
+      background: #fff6f7;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      max-width: min(460px, calc(100vw - 36px));
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--ink);
+      color: #fff;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+      z-index: 20;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 1040px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .deck-panel,
+      .comms-panel {
+        min-height: auto;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+      }
+
+      .top-actions,
+      .status-strip {
+        justify-self: stretch;
+      }
+
+      .top-actions,
+      .panel-head,
+      .gas-bar,
+      .composer {
+        flex-wrap: wrap;
+      }
+
+      .deck-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .stage {
+        min-height: 420px;
+        height: 420px;
+      }
+
+      .gas-bar,
+      .composer {
+        grid-template-columns: 1fr;
+      }
+
+      .send-stack {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">TS</div>
+        <div>
+          <h1>Sunny 2D</h1>
+          <p class="eyebrow">Puente vivo con cubierta, bitácora y diálogo</p>
+        </div>
+      </div>
+      <div class="status-strip">
+        <span id="statusDot" class="status-dot"></span>
+        <span id="statusText">Modo local preparado</span>
+      </div>
+      <div class="top-actions">
+        <button id="stateBtn" type="button" title="Consultar estado GAS">Estado</button>
+        <button id="loadBtn" type="button" class="primary" title="Cargar bitácora reciente">Bitácora</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="deck-panel" aria-label="Representación 2D del Thousand Sunny">
+        <div class="panel-head">
+          <div class="panel-title">
+            <strong>Cubierta táctica</strong>
+            <span id="routeLabel">Ruta: simulación local</span>
+          </div>
+          <div class="segmented" role="group" aria-label="Modo de envío">
+            <button id="localModeBtn" type="button" class="active">Local</button>
+            <button id="gasModeBtn" type="button">GAS</button>
+          </div>
+        </div>
+
+        <div class="deck-layout">
+          <div class="stage" id="stage">
+            <div class="ship" aria-hidden="true">
+              <div class="hull"></div>
+              <div class="sail"></div>
+              <div class="mast"></div>
+              <button class="zone" type="button" data-zone="proa">Proa</button>
+              <button class="zone" type="button" data-zone="mapa">Mapa</button>
+              <button class="zone" type="button" data-zone="cocina">Cocina</button>
+              <button class="zone" type="button" data-zone="taller">Taller</button>
+              <button class="zone" type="button" data-zone="enfermeria">Enfermería</button>
+              <button class="zone" type="button" data-zone="puente">Puente</button>
+              <div class="token" data-crew="capitan">CA</div>
+              <div class="token" data-crew="nami">NA</div>
+              <div class="token" data-crew="zoro">ZO</div>
+              <div class="token" data-crew="sanji">SA</div>
+              <div class="token" data-crew="usopp">US</div>
+              <div class="token" data-crew="robin">RO</div>
+              <div class="token" data-crew="chopper">CH</div>
+            </div>
+          </div>
+
+          <aside class="activity-rail" aria-label="Actividad de la tripulación">
+            <div class="latest-card">
+              <strong>Última acotación</strong>
+              <p id="latestAside">La tripulación espera orden en cubierta.</p>
+            </div>
+            <div class="metric-card">
+              <strong>Señales</strong>
+              <div class="metric-grid">
+                <div class="metric"><span>Mensajes</span><b id="metricLines">0</b></div>
+                <div class="metric"><span>Nakamas</span><b id="metricCrew">0</b></div>
+                <div class="metric"><span>Ruta</span><b id="metricRoute">local</b></div>
+                <div class="metric"><span>Vivo</span><b id="metricLive">off</b></div>
+              </div>
+            </div>
+            <div class="crew-list" id="crewList"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="comms-panel" aria-label="Chat dramatizado">
+        <div class="gas-bar">
+          <input id="gasUrlInput" type="url" aria-label="URL del GAS" value="https://script.google.com/macros/s/AKfycbyfEyeNzvK6qIZwOu9wJ3xXoaQNc6JunVX-HqaJlz4Z4L0ApMwNufIbZNnwmFmWbkNFxA/exec">
+          <button id="liveBtn" type="button" title="Alternar lectura en vivo">Vivo</button>
+          <button id="clearBtn" type="button" title="Limpiar escena">Limpiar</button>
+        </div>
+
+        <div class="chat" id="chat" aria-live="polite"></div>
+
+        <form class="composer" id="composer">
+          <textarea id="messageInput" placeholder="Orden del Capitán"></textarea>
+          <div class="send-stack">
+            <button type="submit" class="primary">Enviar</button>
+            <button id="armGasBtn" type="button" title="Permitir envío real al GAS">Armar GAS</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyfEyeNzvK6qIZwOu9wJ3xXoaQNc6JunVX-HqaJlz4Z4L0ApMwNufIbZNnwmFmWbkNFxA/exec";
+
+    const zones = {
+      proa: { x: 50, y: 22, label: "Proa" },
+      mapa: { x: 31, y: 43, label: "Mapa" },
+      cocina: { x: 69, y: 44, label: "Cocina" },
+      taller: { x: 32, y: 64, label: "Taller" },
+      enfermeria: { x: 69, y: 65, label: "Enfermería" },
+      puente: { x: 50, y: 77, label: "Puente" }
+    };
+
+    const crew = {
+      capitan: { name: "Capitán", initials: "CA", color: "var(--ink)", zone: "puente" },
+      nami: { name: "Nami", initials: "NA", color: "var(--coral)", zone: "mapa" },
+      zoro: { name: "Zoro", initials: "ZO", color: "var(--green)", zone: "taller" },
+      sanji: { name: "Sanji", initials: "SA", color: "var(--gold)", zone: "cocina" },
+      usopp: { name: "Usopp", initials: "US", color: "var(--violet)", zone: "proa" },
+      robin: { name: "Robin", initials: "RO", color: "var(--blue)", zone: "mapa" },
+      chopper: { name: "Chopper", initials: "CH", color: "#b64f8f", zone: "enfermeria" }
+    };
+
+    const crewOffsets = {
+      default: { x: 0, y: 0 },
+      proa: {
+        usopp: { x: 0, y: 13 }
+      },
+      mapa: {
+        nami: { x: 8, y: 2 },
+        robin: { x: -8, y: 0 },
+        capitan: { x: 0, y: 12 }
+      },
+      cocina: {
+        sanji: { x: 0, y: 7 }
+      },
+      taller: {
+        capitan: { x: -12, y: -12 },
+        nami: { x: 12, y: -12 },
+        zoro: { x: -12, y: -2 },
+        usopp: { x: 12, y: -2 }
+      },
+      enfermeria: {
+        chopper: { x: 13, y: -9 },
+        robin: { x: -10, y: -10 },
+        nami: { x: 10, y: -10 }
+      },
+      puente: {
+        capitan: { x: 0, y: -12 }
+      }
+    };
+
+    const els = {
+      chat: document.getElementById("chat"),
+      crewList: document.getElementById("crewList"),
+      latestAside: document.getElementById("latestAside"),
+      statusDot: document.getElementById("statusDot"),
+      statusText: document.getElementById("statusText"),
+      routeLabel: document.getElementById("routeLabel"),
+      metricLines: document.getElementById("metricLines"),
+      metricCrew: document.getElementById("metricCrew"),
+      metricRoute: document.getElementById("metricRoute"),
+      metricLive: document.getElementById("metricLive"),
+      gasUrlInput: document.getElementById("gasUrlInput"),
+      loadBtn: document.getElementById("loadBtn"),
+      liveBtn: document.getElementById("liveBtn"),
+      clearBtn: document.getElementById("clearBtn"),
+      stateBtn: document.getElementById("stateBtn"),
+      localModeBtn: document.getElementById("localModeBtn"),
+      gasModeBtn: document.getElementById("gasModeBtn"),
+      armGasBtn: document.getElementById("armGasBtn"),
+      composer: document.getElementById("composer"),
+      messageInput: document.getElementById("messageInput"),
+      toast: document.getElementById("toast")
+    };
+
+    const state = {
+      sendMode: "local",
+      gasArmed: false,
+      live: false,
+      liveTimer: null,
+      lastTimestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      seen: new Set(),
+      lines: [],
+      activeCrew: new Set(),
+      route: "local"
+    };
+
+    function init() {
+      positionCrew();
+      renderCrewList();
+      bindEvents();
+      seedScene();
+      updateMetrics();
+    }
+
+    function bindEvents() {
+      els.composer.addEventListener("submit", handleSend);
+      els.loadBtn.addEventListener("click", loadRecentBitacora);
+      els.liveBtn.addEventListener("click", toggleLive);
+      els.clearBtn.addEventListener("click", clearScene);
+      els.stateBtn.addEventListener("click", loadGasState);
+      els.localModeBtn.addEventListener("click", () => setSendMode("local"));
+      els.gasModeBtn.addEventListener("click", () => setSendMode("gas"));
+      els.armGasBtn.addEventListener("click", toggleGasArmed);
+
+      document.querySelectorAll(".zone").forEach((zoneButton) => {
+        zoneButton.addEventListener("click", () => {
+          highlightZone(zoneButton.dataset.zone);
+          showToast(`${zones[zoneButton.dataset.zone].label}: cubierta seleccionada`);
+        });
+      });
+    }
+
+    function seedScene() {
+      addLine({
+        nakama: "nami",
+        mensaje: "Puente preparado. Podemos leer bitácora, simular una ronda o armar envío real al GAS.",
+        ruta: "local",
+        motor: "prototype",
+        timestamp: new Date().toISOString()
+      });
+      addLine({
+        nakama: "usopp",
+        mensaje: "Dejo la maqueta lista: tokens en cubierta, diálogo con acotaciones y modo vivo reversible.",
+        ruta: "local",
+        motor: "prototype",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    function setSendMode(mode) {
+      state.sendMode = mode;
+      els.localModeBtn.classList.toggle("active", mode === "local");
+      els.gasModeBtn.classList.toggle("active", mode === "gas");
+      state.route = mode;
+      els.routeLabel.textContent = mode === "gas" ? "Ruta: GAS preparado" : "Ruta: simulación local";
+      updateMetrics();
+    }
+
+    function toggleGasArmed() {
+      state.gasArmed = !state.gasArmed;
+      els.armGasBtn.classList.toggle("armed", state.gasArmed);
+      els.armGasBtn.textContent = state.gasArmed ? "GAS armado" : "Armar GAS";
+      showToast(state.gasArmed ? "Envío real al GAS armado" : "Envío real al GAS desarmado");
+    }
+
+    async function handleSend(event) {
+      event.preventDefault();
+      const text = els.messageInput.value.trim();
+      if (!text) return;
+
+      els.messageInput.value = "";
+      addLine({
+        nakama: "capitan",
+        mensaje: text,
+        ruta: state.sendMode,
+        motor: "humano",
+        timestamp: new Date().toISOString()
+      });
+
+      if (state.sendMode === "gas" && state.gasArmed) {
+        await sendToGas(text);
+        return;
+      }
+
+      simulateCrewRound(text);
+    }
+
+    async function sendToGas(text) {
+      setBusy("Enviando al GAS");
+      try {
+        const data = await gasGet("mensaje", { text, ruta: "sunny-2d" });
+        state.lastTimestamp = new Date().toISOString();
+        const responses = Array.isArray(data.responses) ? data.responses : [];
+        responses.forEach((response, index) => {
+          window.setTimeout(() => {
+            addLine({
+              nakama: response.nakama,
+              mensaje: response.texto || response.mensaje || "",
+              ruta: "gas",
+              motor: response.motor || "gas",
+              tokens: response.tokens || 0,
+              timestamp: new Date().toISOString()
+            });
+          }, 420 * (index + 1));
+        });
+        showToast("Mensaje enviado al GAS");
+      } catch (error) {
+        addLine({
+          nakama: "usopp",
+          mensaje: `No pude completar el envío real: ${error.message}`,
+          ruta: "local",
+          motor: "prototype",
+          timestamp: new Date().toISOString()
+        });
+      } finally {
+        setReady();
+      }
+    }
+
+    function simulateCrewRound(text) {
+      const route = routeForText(text);
+      route.forEach((speaker, index) => {
+        window.setTimeout(() => {
+          addLine({
+            nakama: speaker,
+            mensaje: localReply(speaker, text),
+            ruta: "local",
+            motor: "prototype",
+            timestamp: new Date().toISOString()
+          });
+        }, 520 * (index + 1));
+      });
+    }
+
+    function routeForText(text) {
+      const value = text.toLowerCase();
+      if (/(drive|archivo|canon|purga|ism|jdg|sheet|xlsx)/.test(value)) {
+        return ["nami", "robin", "zoro", "usopp"];
+      }
+      if (/(webapp|android|app|2d|interfaz|argos|chat)/.test(value)) {
+        return ["usopp", "nami", "sanji"];
+      }
+      if (/(quir[oó]n|cl[ií]nic|paciente|tdah|hipatia)/.test(value)) {
+        return ["chopper", "robin", "nami"];
+      }
+      return ["nami", "usopp", "sanji"];
+    }
+
+    function localReply(speaker, text) {
+      const compact = text.length > 92 ? `${text.slice(0, 92)}...` : text;
+      const replies = {
+        nami: `Rumbo acotado. Lo traduzco a una secuencia visible y mantengo el estado legible para no perder el hilo: "${compact}".`,
+        zoro: "Puedo ejecutar la parte mecánica cuando el canon esté declarado. Primero manifiesto, luego movimiento.",
+        sanji: "La vista necesita entrar limpia: cubierta a la izquierda, conversación a la derecha, y nada que obligue al Capitán a pelear con la interfaz.",
+        usopp: "Construyo la maqueta útil primero. Si funciona en web, después se puede envolver como Android con la misma lógica.",
+        robin: "Marco linaje y fuente viva. Si una familia tiene ambigüedad clínica, queda protegida y no entra en purga automática.",
+        chopper: "Si toca material clínico, lo dejo en lectura y aviso. Ningún movimiento sin decisión expresa del Capitán.",
+        capitan: compact
+      };
+      return replies[speaker] || compact;
+    }
+
+    function addLine(raw) {
+      const entry = normalizeEntry(raw);
+      if (entry.id && state.seen.has(entry.id)) return;
+      if (entry.id) state.seen.add(entry.id);
+
+      state.lines.push(entry);
+      state.activeCrew.add(entry.speaker);
+      renderLine(entry);
+      moveCrew(entry.speaker, entry.zone);
+      setActiveCrew(entry.speaker);
+      highlightZone(entry.zone);
+      els.latestAside.textContent = entry.aside;
+      state.route = entry.ruta || state.route;
+      updateMetrics();
+      els.chat.scrollTop = els.chat.scrollHeight;
+    }
+
+    function normalizeEntry(raw) {
+      const speaker = normalizeSpeaker(raw.nakama || raw.speaker || "usopp");
+      const message = String(raw.mensaje || raw.texto || raw.text || "").trim();
+      const timestamp = normalizeTime(raw.timestamp);
+      const zone = zoneFor(speaker, message);
+      return {
+        id: raw.id ? String(raw.id) : `${timestamp}-${speaker}-${message.slice(0, 24)}`,
+        speaker,
+        name: crew[speaker]?.name || raw.nakama || "Tripulación",
+        mensaje: message || "(sin texto)",
+        ruta: raw.ruta || "local",
+        motor: raw.motor || "",
+        tokens: Number(raw.tokens || 0),
+        timestamp,
+        zone,
+        aside: stageDirection(speaker, zone, message)
+      };
+    }
+
+    function normalizeSpeaker(value) {
+      const clean = String(value || "").toLowerCase();
+      if (clean.includes("capit")) return "capitan";
+      if (clean.includes("nami")) return "nami";
+      if (clean.includes("zoro")) return "zoro";
+      if (clean.includes("sanji")) return "sanji";
+      if (clean.includes("robin")) return "robin";
+      if (clean.includes("chopper")) return "chopper";
+      if (clean.includes("usopp")) return "usopp";
+      return "usopp";
+    }
+
+    function normalizeTime(value) {
+      const date = value ? new Date(value) : new Date();
+      return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+    }
+
+    function zoneFor(speaker, message) {
+      const text = message.toLowerCase();
+      if (/(cl[ií]nic|paciente|quir[oó]n|tdah|hipatia)/.test(text)) return "enfermeria";
+      if (/(drive|archivo|canon|purga|gas|deploy|c[oó]digo|bug|test|android|webapp)/.test(text)) return "taller";
+      if (/(rumbo|estado|bit[aá]cora|ruta|mar|isla|agenda)/.test(text)) return "mapa";
+      if (speaker === "capitan") return "puente";
+      if (speaker === "sanji") return "cocina";
+      if (speaker === "chopper") return "enfermeria";
+      if (speaker === "zoro" || speaker === "usopp") return "taller";
+      return crew[speaker]?.zone || "mapa";
+    }
+
+    function stageDirection(speaker, zone, message) {
+      const place = zones[zone]?.label || "Cubierta";
+      const action = {
+        capitan: "El Capitán toma el timón y deja una orden sobre la mesa.",
+        nami: "Nami abre el mapa y reduce el ruido a una ruta.",
+        zoro: "Zoro se planta junto al banco de herramientas y espera el objetivo exacto.",
+        sanji: "Sanji ordena la mesa para que la información entre limpia.",
+        usopp: "Usopp prueba un mecanismo nuevo y mira si aguanta el primer disparo.",
+        robin: "Robin revisa linaje, intención y riesgo antes de tocar nada.",
+        chopper: "Chopper separa lo clínico de lo operativo con pulso cuidadoso."
+      }[speaker] || "La tripulación se mueve.";
+
+      const hint = message.length > 120 ? "La intervención es larga; queda recogida en el registro." : "La intervención cabe en el panel activo.";
+      return `${place}. ${action} ${hint}`;
+    }
+
+    function renderLine(entry) {
+      const node = document.createElement("article");
+      node.className = `line ${entry.speaker}`;
+      node.innerHTML = `
+        <div class="line-head">
+          <b>${escapeHtml(entry.name)}</b>
+          <span>${formatTime(entry.timestamp)} · ${escapeHtml(entry.ruta)}${entry.motor ? ` · ${escapeHtml(entry.motor)}` : ""}</span>
+        </div>
+        <div class="aside">${escapeHtml(entry.aside)}</div>
+        <p class="speech">${escapeHtml(entry.mensaje)}</p>
+      `;
+      els.chat.appendChild(node);
+    }
+
+    function renderCrewList() {
+      els.crewList.innerHTML = "";
+      Object.entries(crew).forEach(([key, member]) => {
+        const row = document.createElement("div");
+        row.className = "crew-row";
+        row.dataset.crew = key;
+        row.innerHTML = `
+          <span class="crew-chip" style="background:${member.color}">${member.initials}</span>
+          <span><strong>${member.name}</strong><span data-zone-label>${zones[member.zone].label}</span></span>
+          <span class="pulse"></span>
+        `;
+        els.crewList.appendChild(row);
+      });
+    }
+
+    function positionCrew() {
+      Object.entries(crew).forEach(([key, member]) => moveCrew(key, member.zone, true));
+    }
+
+    function moveCrew(key, zoneKey, immediate = false) {
+      const member = crew[key];
+      const zone = zones[zoneKey] || zones.puente;
+      if (!member) return;
+      member.zone = zoneKey;
+
+      const token = document.querySelector(`.token[data-crew="${key}"]`);
+      if (token) {
+        const offset = crewOffsets[zoneKey]?.[key] || crewOffsets.default;
+        if (immediate) token.style.transition = "none";
+        token.style.left = `${clamp(zone.x + offset.x, 8, 92)}%`;
+        token.style.top = `${clamp(zone.y + offset.y, 8, 92)}%`;
+        if (immediate) window.requestAnimationFrame(() => { token.style.transition = ""; });
+      }
+
+      const row = document.querySelector(`.crew-row[data-crew="${key}"] [data-zone-label]`);
+      if (row) row.textContent = zone.label;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function setActiveCrew(key) {
+      document.querySelectorAll(".token, .crew-row").forEach((node) => node.classList.remove("active"));
+      document.querySelector(`.token[data-crew="${key}"]`)?.classList.add("active");
+      document.querySelector(`.crew-row[data-crew="${key}"]`)?.classList.add("active");
+      window.clearTimeout(setActiveCrew.timer);
+      setActiveCrew.timer = window.setTimeout(() => {
+        document.querySelectorAll(".token, .crew-row").forEach((node) => node.classList.remove("active"));
+      }, 1600);
+    }
+
+    function highlightZone(zoneKey) {
+      document.querySelectorAll(".zone").forEach((node) => {
+        node.classList.toggle("active", node.dataset.zone === zoneKey);
+      });
+    }
+
+    async function loadRecentBitacora() {
+      setBusy("Cargando bitácora");
+      try {
+        const data = await gasGet("bitacora", { limit: "18" });
+        const rows = normalizeRows(data);
+        if (!rows.length) {
+          showToast("Sin entradas recientes");
+          return;
+        }
+        rows.forEach(addLine);
+        state.lastTimestamp = rows[rows.length - 1].timestamp || new Date().toISOString();
+        showToast(`${rows.length} entradas cargadas`);
+      } catch (error) {
+        showToast(`No pude cargar bitácora: ${error.message}`);
+      } finally {
+        setReady();
+      }
+    }
+
+    async function loadGasState() {
+      setBusy("Consultando estado");
+      try {
+        const data = await gasGet("get_estado_full", {});
+        const estado = data.estado || data.value?.estado || {};
+        addLine({
+          nakama: "nami",
+          mensaje: `Estado: ${estado.barco || "barco"} · GAS ${estado.gas_version || "n/e"} · Telegram ${estado.telegram_status || "n/e"} · Zoro ${estado.zoro_status || "n/e"}.`,
+          ruta: "gas",
+          motor: "estado",
+          timestamp: new Date().toISOString()
+        });
+        showToast("Estado recibido");
+      } catch (error) {
+        showToast(`No pude consultar estado: ${error.message}`);
+      } finally {
+        setReady();
+      }
+    }
+
+    function toggleLive() {
+      state.live = !state.live;
+      els.liveBtn.classList.toggle("armed", state.live);
+      els.statusDot.classList.toggle("live", state.live);
+      els.liveBtn.textContent = state.live ? "Vivo on" : "Vivo";
+
+      if (state.live) {
+        pollLive();
+        state.liveTimer = window.setInterval(pollLive, 10000);
+      } else {
+        window.clearInterval(state.liveTimer);
+        state.liveTimer = null;
+      }
+      updateMetrics();
+      setReady();
+    }
+
+    async function pollLive() {
+      if (!state.live) return;
+      try {
+        const data = await gasGet("bitacora_desde", { since: state.lastTimestamp });
+        const rows = normalizeRows(data);
+        rows.forEach(addLine);
+        if (rows.length) {
+          state.lastTimestamp = rows[rows.length - 1].timestamp || new Date().toISOString();
+        }
+      } catch (error) {
+        showToast(`Vivo pausado por error: ${error.message}`);
+        state.live = false;
+        window.clearInterval(state.liveTimer);
+        els.liveBtn.classList.remove("armed");
+        els.statusDot.classList.remove("live");
+        updateMetrics();
+      }
+    }
+
+    function normalizeRows(data) {
+      const rows = Array.isArray(data) ? data : Array.isArray(data.value) ? data.value : Array.isArray(data.rows) ? data.rows : [];
+      return rows
+        .filter((row) => row && (row.mensaje || row.texto || row.text))
+        .map((row, index) => ({
+          id: row.id || `${row.timestamp || ""}-${row.nakama || ""}-${index}`,
+          timestamp: normalizeTime(row.timestamp),
+          ruta: row.ruta || "gas",
+          nakama: row.nakama || "usopp",
+          mensaje: row.mensaje || row.texto || row.text || "",
+          motor: row.motor || "",
+          tokens: row.tokens || 0
+        }));
+    }
+
+    async function gasGet(action, params) {
+      const gasUrl = els.gasUrlInput.value.trim() || DEFAULT_GAS_URL;
+      const url = new URL(gasUrl);
+      url.searchParams.set("action", action);
+      Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+
+      const response = await fetch(url.toString());
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (data && data.error) throw new Error(data.error);
+      return data;
+    }
+
+    function clearScene() {
+      els.chat.innerHTML = "";
+      state.lines = [];
+      state.seen.clear();
+      state.activeCrew.clear();
+      Object.entries(crew).forEach(([key, member]) => moveCrew(key, member.zone));
+      els.latestAside.textContent = "La tripulación espera orden en cubierta.";
+      updateMetrics();
+      showToast("Escena limpia");
+    }
+
+    function setBusy(text) {
+      els.statusText.textContent = text;
+      els.statusDot.classList.add("live");
+    }
+
+    function setReady() {
+      els.statusText.textContent = state.live ? "Lectura en vivo activa" : state.sendMode === "gas" ? "Modo GAS preparado" : "Modo local preparado";
+      els.statusDot.classList.toggle("live", state.live);
+    }
+
+    function updateMetrics() {
+      const speakers = new Set(state.lines.map((line) => line.speaker));
+      els.metricLines.textContent = String(state.lines.length);
+      els.metricCrew.textContent = String(speakers.size);
+      els.metricRoute.textContent = state.route === "gas" ? "gas" : "local";
+      els.metricLive.textContent = state.live ? "on" : "off";
+      setReady();
+    }
+
+    function showToast(message) {
+      els.toast.textContent = message;
+      els.toast.classList.add("show");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => els.toast.classList.remove("show"), 2400);
+    }
+
+    function formatTime(value) {
+      return new Intl.DateTimeFormat("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(new Date(value));
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    init();
+  </script>
+</body>
+</html>

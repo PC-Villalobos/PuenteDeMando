@@ -9,6 +9,7 @@ Arquitectura multi-agente con Google Apps Script, Google Drive y tres motores de
 | `thousand-sunny-unified.js` | GAS Unificado: backend autonomo + bot Telegram + API REST para webapp |
 | `thousand-sunny-patch-v2.js` | Patch v2: routing natural language + webapp bridge + cola de tareas |
 | `thousand-sunny-bridge-v2.html` | Webapp v2: feed en vivo de la Sheet, mensajes via GAS |
+| `sunny-client.js` | Cliente local para hablar con Sunny Core (`/api/core`, start y close de misiones) |
 | `thousand-sunny-bridge.html` | Webapp v1: chat autonomo con APIs directas |
 | `thousand-sunny-gas-autonomo.js` | GAS v1: script autonomo original |
 | `INSTALACION-PATCH-V2.md` | Guia de instalacion del patch v2 |
@@ -43,3 +44,10 @@ Webapp HTML (polling cada 10s)
 ## Setup
 
 Ver `INSTALACION-PATCH-V2.md` para instrucciones detalladas.
+
+## Sunny Core local
+
+SUN-0003 anade `sunny-client.js` como wrapper browser/Node para conectar el
+Puente con el Hub local en `http://127.0.0.1:3333`.
+
+Guia de uso: `docs/SUNNY-CORE-CLIENT.md`.
