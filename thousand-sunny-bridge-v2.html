@@ -608,6 +608,7 @@
 
       // Las respuestas llegarán por polling, pero vamos a procesarlas aquí también
       if (data.responses && Array.isArray(data.responses)) {
+        const displayedAt = new Date().toISOString();
         data.responses.forEach(r => {
           setTimeout(() => {
             addMessage(
@@ -616,10 +617,11 @@
               r.motor,
               r.tokens,
               'webapp',
-              new Date().toISOString()
+              r.timestamp || displayedAt
             );
           }, 500);
         });
+        lastTimestamp = displayedAt;
       }
 
       setStatus('green');
