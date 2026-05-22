@@ -315,6 +315,83 @@ def upload_markdown(
     )
 
 
+def markdown_cell(value: Any) -> str:
+    text = "" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+def render_migration_log(result: dict[str, Any]) -> str:
+    migrated = result.get("migrados", [])
+    failed = result.get("fallidos", [])
+    lines = [
+        "# MIGRACION_LOG",
+        "",
+        f"- timestamp: `{result.get('timestamp', datetime.now(timezone.utc).isoformat())}`",
+        f"- migrados: `{len(migrated)}`",
+        f"- fallidos: `{len(failed)}`",
+        "",
+        "## Migrados",
+        "",
+    ]
+
+    if migrated:
+        lines.extend(
+            [
+                "| Source | Markdown | Folder | URL |",
+                "|---|---|---|---|",
+            ]
+        )
+        for item in migrated:
+            lines.append(
+                "| {source} | {target} | {folder} | {url} |".format(
+                    source=markdown_cell(item.get("sourceName") or item.get("sourceId")),
+                    target=markdown_cell(item.get("mdName") or item.get("mdId")),
+                    folder=markdown_cell(item.get("folderId")),
+                    url=markdown_cell(item.get("url")),
+                )
+            )
+    else:
+        lines.append("_No files migrated._")
+
+    lines.extend(["", "## Fallidos", ""])
+    if failed:
+        lines.extend(
+            [
+                "| Source | Error |",
+                "|---|---|",
+            ]
+        )
+        for item in failed:
+            lines.append(
+                "| {source} | {error} |".format(
+                    source=markdown_cell(item.get("sourceName") or item.get("sourceId")),
+                    error=markdown_cell(item.get("error")),
+                )
+            )
+    else:
+        lines.append("_No failures._")
+
+    lines.extend(["", "## JSON", "", "```json", json.dumps(result, ensure_ascii=False, indent=2), "```", ""])
+    return "\n".join(lines)
+
+
+def write_migration_log(
+    service: Any,
+    libs: dict[str, Any],
+    result: dict[str, Any],
+    folder_id: str | None = None,
+) -> dict[str, Any]:
+    target_folder_id = folder_id or "root"
+    return upload_markdown(
+        service,
+        libs,
+        target_folder_id,
+        "MIGRACION_LOG.md",
+        render_migration_log(result),
+        overwrite=True,
+    )
+
+
 def bitacora_range(sheets: Any, sheet_id: str) -> str:
     spreadsheet = (
         sheets.spreadsheets()
@@ -422,6 +499,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--local-out", type=Path, help="Optional local folder for exported .md files")
     parser.add_argument("--bitacora-sheet-id", default=BITACORA_SHEET_ID, help="Sheet id for operation logs")
     parser.add_argument("--no-bitacora", action="store_true", help="Disable Google Sheets logging")
+    parser.add_argument("--migration-log", action="store_true", help="Write MIGRACION_LOG.md after a live migration")
+    parser.add_argument("--log-folder-id", help="Drive folder id for MIGRACION_LOG.md; defaults to Drive root")
     parser.add_argument("--service-account", help="Path to service-account JSON credentials")
     parser.add_argument("--client-secret", help="OAuth client_secret.json for installed app flow")
     parser.add_argument("--token", default="token.json", help="OAuth token cache path")
@@ -442,7 +521,10 @@ def main(argv: list[str]) -> int:
         local_out=args.local_out,
         log_sheet_id=None if args.no_bitacora else args.bitacora_sheet_id,
     )
-    print(json.dumps(migrate(config, drive, sheets, libs), ensure_ascii=False, indent=2))
+    result = migrate(config, drive, sheets, libs)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if args.migration_log and not args.dry_run:
+        write_migration_log(drive, libs, result, args.log_folder_id)
     return 0
 
 
