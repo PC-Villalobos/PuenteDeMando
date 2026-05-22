@@ -477,6 +477,7 @@ function doGet(e) {
           {
             recursive: e.parameter.recursive === "true",
             dryRun: e.parameter.commit !== "true",
+            move: e.parameter.move === "true",
             limit: parseInt(e.parameter.limit || "25", 10)
           }
         );
@@ -2496,11 +2497,20 @@ function delegarAUsopp_(tarea, contexto, maxTokens) {
 // ========================================================
 
 var ROBIN_DRIVE_TAG_MARKER_ = "SUN_TAGS:";
+var ROBIN_DRIVE_TAG_DESTINATIONS_ = {
+  ecosistema_ia: { nombre: "IA como extensión cognitiva personal (Gemini, Claude y ChatGPT)", id: "1HGQUUQxoYgSyVcIBUFEfNBeTZHhx7Yna" },
+  agape: { nombre: "AGAPE", id: "1gWhKVM0lPJccH4NiWHX0lDO4ColGq-IN" },
+  astrologia: { nombre: "ASTROLOGIA_TERRESTRE", id: "18CEJZyibomgULtTWcyUId36s7JiPeUuy" },
+  personal: { nombre: "04_PERSONAL", id: "12pTytDp6pHZm2p7VnGE9DlGQOE5N9az6" },
+  ocio: { nombre: "04_PERSONAL", id: "12pTytDp6pHZm2p7VnGE9DlGQOE5N9az6" },
+  general: { nombre: "00_ZONA_DE_CAPTURA", id: "13AS754Rs6_lftFDS_DKtSe1LXgtzFtFr" }
+};
 
 function Robin_TagDriveUntagged(folderId, options) {
   options = options || {};
   var dryRun = options.dryRun !== false;
   var recursive = options.recursive === true;
+  var move = options.move === true;
   var limit = parseInt(options.limit || 25, 10);
   if (isNaN(limit) || limit < 1) limit = 25;
   limit = Math.min(limit, 100);
@@ -2509,8 +2519,10 @@ function Robin_TagDriveUntagged(folderId, options) {
     ok: true,
     dryRun: dryRun,
     recursive: recursive,
+    move: move,
     limit: limit,
     tagged: [],
+    moved: [],
     skipped: [],
     failed: [],
     timestamp: new Date().toISOString()
@@ -2539,6 +2551,7 @@ function Robin_TagDriveUntagged(folderId, options) {
       "robin",
       "Etiquetado Drive " + (dryRun ? "DRY_RUN" : "COMMIT") + ": " +
         result.tagged.length + " candidatos, " +
+        result.moved.length + " movidos, " +
         result.skipped.length + " saltados, " +
         result.failed.length + " fallidos. folder=" + (result.folderName || "root"),
       "drive-tags-v1",
@@ -2570,12 +2583,25 @@ function Robin_TagFolderUntagged_(folder, path, recursive, dryRun, limit, result
 
       var preview = Robin_ReadDriveTagPreview_(file);
       var classification = Robin_InferDriveTags_(file.getName(), file.getMimeType(), preview, path);
+      var destination = Robin_GetDriveTagDestination_(classification.category);
       var tagLine = Robin_BuildDriveTagLine_(classification);
       var newDescription = Robin_AppendDriveDescriptionTag_(description, tagLine);
+      var moved = null;
 
       if (!dryRun) {
         file.setDescription(newDescription);
         Robin_LogDriveTag_(file, path, classification, tagLine);
+        if (result.move && destination) {
+          moved = Robin_MoveFileToDestination_(file, destination);
+          result.moved.push({
+            id: file.getId(),
+            name: file.getName(),
+            destinationId: destination.id,
+            destinationName: destination.nombre,
+            ok: moved.ok,
+            error: moved.error || ""
+          });
+        }
       }
 
       result.tagged.push({
@@ -2586,6 +2612,8 @@ function Robin_TagFolderUntagged_(folder, path, recursive, dryRun, limit, result
         category: classification.category,
         tags: classification.tags,
         confidence: classification.confidence,
+        destination: destination ? destination.nombre : "",
+        moved: moved,
         dryRun: dryRun
       });
     } catch (errFile) {
@@ -2620,12 +2648,12 @@ function Robin_ShouldSkipDriveTag_(file, path) {
 
 function Robin_IsSystemDriveName_(text) {
   text = String(text || "");
-  return /Bit.cora del Thousand Sunny|ESTADO|Memoria|HIPATIA|Canon v1\.1|DECKARD|thousand-sunny|guardias-nami/i.test(text);
+  return /Bit.cora del Thousand Sunny|^ESTADO$|^ESTADO[_ -]|^Memoria$|Memoria Compartida|HIPATIA|Canon v1\.1|DECKARD|thousand-sunny|guardias-nami/i.test(text);
 }
 
 function Robin_IsClinicalDriveName_(text) {
   text = String(text || "");
-  return /N.emesis|Nemesis|paciente|Caso_Vivo|Carlos|Ismael|\bCAR\b|\bISM\b|CAR[-_ ]?S|ISM[-_ ]?S|clinica|clinico|sesion terapeutica|feedback simbolico|feedback simb.l|CapaC|Canon_ISM|CIERRE_ISM|Actualizacion_CasoVivo/i.test(text);
+  return /N[eé]mesis|paciente|Caso_Vivo|Carlos|Ismael|\bCAR\b|\bISM\b|CAR[-_ ]?S|ISM[-_ ]?S|cl[ií]nica|cl[ií]nico|cl[ií]nicos|sesion terapeutica|feedback simbolico|feedback simb.l|CapaC|Canon_ISM|CIERRE_ISM|Actualizacion_CasoVivo/i.test(text);
 }
 
 function Robin_IsProtectedDrivePath_(path) {
@@ -2658,8 +2686,8 @@ function Robin_ReadDriveTagPreview_(file) {
 function Robin_InferDriveTags_(name, mimeType, preview, path) {
   var text = (String(name || "") + "\n" + String(path || "") + "\n" + String(preview || "")).toLowerCase();
   var rules = [
-    { category: "ecosistema_ia", tags: ["ia", "sunny", "cowork"], kws: ["thousand sunny", "gas", "webapp", "telegram", "cowork", "codex", "claude", "gemini", "zoro", "nami", "sanji", "obsidian", "markdown", "ollama", "opencode", "qwen", "migracion"] },
-    { category: "agape", tags: ["agape", "simbolico"], kws: ["agape", "mito", "jung", "hillman", "tolkien", "arquetip", "cosmologia", "sagrado", "alquimia"] },
+    { category: "ecosistema_ia", tags: ["ia", "sunny", "cowork"], kws: ["thousand sunny", "gas", "webapp", "telegram", "cowork", "codex", "claude", "gemini", "zoro", "nami", "sanji", "obsidian", "markdown", "ollama", "opencode", "qwen", "migracion", "inteligencia artificial", "agencia", "automatizacion", "automatización", "agencia humana", "metadata", "soberania", "soberanía", "piratas", "libertad", "control total", "siglo perdido", "memoria ancestral", "friccion generativa", "fricción generativa", "ia dialectica", "ia dialéctica", "dialectica", "dialéctica", "algoritmo", "algoritmica", "algorítmica", "trono vacio", "trono vacío", "vigilancia", "anthropic", "micelio", "integracion vertical", "integración vertical", "n1-pen", "n2-act-sis", "n3-pen-sis", "ananda_sutras"] },
+    { category: "agape", tags: ["agape", "simbolico"], kws: ["agape", "mito", "jung", "hillman", "tolkien", "arquetip", "cosmologia", "sagrado", "alquimia", "tonal", "nahual", "flor"] },
     { category: "astrologia", tags: ["astrologia"], kws: ["astrolog", "carta natal", "luna en", "sol en", "ascendente", "sideral", "tropical"] },
     { category: "personal", tags: ["personal"], kws: ["reflexion personal", "relacion", "pareja", "emocion", "adulto funcional", "sueno"] },
     { category: "ocio", tags: ["ocio"], kws: ["elden ring", "videojuego", "gaming", "dark souls"] }
@@ -2702,6 +2730,40 @@ function Robin_MimeToTag_(mimeType, name) {
   if (/pdf$/.test(mimeType || "")) return "pdf";
   if (/^text\//.test(mimeType || "")) return "texto";
   return "archivo";
+}
+
+function Robin_GetDriveTagDestination_(category) {
+  return ROBIN_DRIVE_TAG_DESTINATIONS_[category] || ROBIN_DRIVE_TAG_DESTINATIONS_.general;
+}
+
+function Robin_MoveFileToDestination_(file, destination) {
+  try {
+    var target = DriveApp.getFolderById(destination.id);
+    var alreadyThere = false;
+    var parents = file.getParents();
+    var parentIds = [];
+    while (parents.hasNext()) {
+      var parent = parents.next();
+      parentIds.push(parent.getId());
+      if (parent.getId() === destination.id) alreadyThere = true;
+    }
+
+    if (!alreadyThere) target.addFile(file);
+
+    for (var i = 0; i < parentIds.length; i++) {
+      if (parentIds[i] !== destination.id) {
+        DriveApp.getFolderById(parentIds[i]).removeFile(file);
+      }
+    }
+
+    try {
+      logBitacora_("drive", "zoro", "Movido por etiquetado: " + file.getName() + " -> " + destination.nombre, "drive-tags-v1", 0);
+    } catch (_) {}
+
+    return { ok: true, destinationName: destination.nombre, destinationId: destination.id };
+  } catch (err) {
+    return { ok: false, error: err.message, destinationName: destination.nombre, destinationId: destination.id };
+  }
 }
 
 function Robin_BuildDriveTagLine_(classification) {
