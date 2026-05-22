@@ -471,6 +471,21 @@ function doGet(e) {
         result = logBatchCowork_(entries);
         break;
 
+      case "drive_etiquetar_pendiente":
+        result = Robin_TagDriveUntagged(
+          e.parameter.folderId || e.parameter.id || "",
+          {
+            recursive: e.parameter.recursive === "true",
+            dryRun: e.parameter.commit !== "true",
+            limit: parseInt(e.parameter.limit || "25", 10)
+          }
+        );
+        break;
+
+      case "cowork_continuar_hilo":
+        result = Cowork_ContinuarHilo_(e.parameter.tema || "", e.parameter.resumen || "");
+        break;
+
       case "guardia_nami":
         var resumen = e.parameter.resumen || "";
         if (!resumen) { result = {error: "sin resumen"}; break; }
@@ -2474,6 +2489,293 @@ function delegarAUsopp_(tarea, contexto, maxTokens) {
   } catch (e) {
     return { error: e.message };
   }
+}
+
+// ========================================================
+// ROBIN DRIVE TAGGING - Etiquetado seguro de archivos
+// ========================================================
+
+var ROBIN_DRIVE_TAG_MARKER_ = "SUN_TAGS:";
+
+function Robin_TagDriveUntagged(folderId, options) {
+  options = options || {};
+  var dryRun = options.dryRun !== false;
+  var recursive = options.recursive === true;
+  var limit = parseInt(options.limit || 25, 10);
+  if (isNaN(limit) || limit < 1) limit = 25;
+  limit = Math.min(limit, 100);
+
+  var result = {
+    ok: true,
+    dryRun: dryRun,
+    recursive: recursive,
+    limit: limit,
+    tagged: [],
+    skipped: [],
+    failed: [],
+    timestamp: new Date().toISOString()
+  };
+
+  var root;
+  try {
+    root = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
+    result.folderId = root.getId();
+    result.folderName = root.getName();
+  } catch (errFolder) {
+    result.ok = false;
+    result.failed.push({ folderId: folderId || "", error: errFolder.message });
+    return result;
+  }
+
+  try {
+    Robin_EnsureDriveTagsSheet_();
+  } catch (_) {}
+
+  Robin_TagFolderUntagged_(root, root.getName(), recursive, dryRun, limit, result);
+
+  try {
+    logBitacora_(
+      "cowork",
+      "robin",
+      "Etiquetado Drive " + (dryRun ? "DRY_RUN" : "COMMIT") + ": " +
+        result.tagged.length + " candidatos, " +
+        result.skipped.length + " saltados, " +
+        result.failed.length + " fallidos. folder=" + (result.folderName || "root"),
+      "drive-tags-v1",
+      0
+    );
+  } catch (_) {}
+
+  return result;
+}
+
+function Robin_TagFolderUntagged_(folder, path, recursive, dryRun, limit, result) {
+  if (result.tagged.length >= limit) return;
+
+  var files = folder.getFiles();
+  while (files.hasNext() && result.tagged.length < limit) {
+    var file = files.next();
+    try {
+      var skip = Robin_ShouldSkipDriveTag_(file, path);
+      if (skip) {
+        result.skipped.push(skip);
+        continue;
+      }
+
+      var description = file.getDescription() || "";
+      if (description.indexOf(ROBIN_DRIVE_TAG_MARKER_) !== -1) {
+        result.skipped.push({ id: file.getId(), name: file.getName(), reason: "already_tagged" });
+        continue;
+      }
+
+      var preview = Robin_ReadDriveTagPreview_(file);
+      var classification = Robin_InferDriveTags_(file.getName(), file.getMimeType(), preview, path);
+      var tagLine = Robin_BuildDriveTagLine_(classification);
+      var newDescription = Robin_AppendDriveDescriptionTag_(description, tagLine);
+
+      if (!dryRun) {
+        file.setDescription(newDescription);
+        Robin_LogDriveTag_(file, path, classification, tagLine);
+      }
+
+      result.tagged.push({
+        id: file.getId(),
+        name: file.getName(),
+        mimeType: file.getMimeType(),
+        path: path,
+        category: classification.category,
+        tags: classification.tags,
+        confidence: classification.confidence,
+        dryRun: dryRun
+      });
+    } catch (errFile) {
+      result.failed.push({ id: file.getId(), name: file.getName(), error: errFile.message });
+    }
+  }
+
+  if (!recursive || result.tagged.length >= limit) return;
+
+  var folders = folder.getFolders();
+  while (folders.hasNext() && result.tagged.length < limit) {
+    var child = folders.next();
+    var childPath = path + "/" + child.getName();
+    if (Robin_IsProtectedDrivePath_(childPath)) {
+      result.skipped.push({ id: child.getId(), name: child.getName(), path: childPath, reason: "protected_folder" });
+      continue;
+    }
+    Robin_TagFolderUntagged_(child, childPath, recursive, dryRun, limit, result);
+  }
+}
+
+function Robin_ShouldSkipDriveTag_(file, path) {
+  var name = file.getName();
+  if (Robin_IsSystemDriveName_(name) || Robin_IsSystemDriveName_(path)) {
+    return { id: file.getId(), name: name, path: path, reason: "system_file" };
+  }
+  if (Robin_IsClinicalDriveName_(name) || Robin_IsClinicalDriveName_(path)) {
+    return { id: file.getId(), name: name, path: path, reason: "clinical_guard" };
+  }
+  return null;
+}
+
+function Robin_IsSystemDriveName_(text) {
+  text = String(text || "");
+  return /Bit.cora del Thousand Sunny|ESTADO|Memoria|HIPATIA|Canon v1\.1|DECKARD|thousand-sunny|guardias-nami/i.test(text);
+}
+
+function Robin_IsClinicalDriveName_(text) {
+  text = String(text || "");
+  return /N.emesis|Nemesis|paciente|Caso_Vivo|Carlos|Ismael|\bCAR\b|\bISM\b|CAR[-_ ]?S|ISM[-_ ]?S|clinica|clinico|sesion terapeutica|feedback simbolico|feedback simb.l|CapaC|Canon_ISM|CIERRE_ISM|Actualizacion_CasoVivo/i.test(text);
+}
+
+function Robin_IsProtectedDrivePath_(path) {
+  return Robin_IsSystemDriveName_(path) || Robin_IsClinicalDriveName_(path);
+}
+
+function Robin_ReadDriveTagPreview_(file) {
+  var mime = file.getMimeType();
+  try {
+    if (
+      mime === "application/vnd.google-apps.document" ||
+      mime === "application/vnd.google-apps.spreadsheet" ||
+      mime === "application/vnd.google-apps.presentation" ||
+      mime === "text/plain" ||
+      mime === "text/csv" ||
+      mime === "application/json"
+    ) {
+      return leerContenidoArchivo_(file.getId(), mime);
+    }
+    if (mime === "text/markdown" || /\.md$/i.test(file.getName())) {
+      var md = file.getBlob().getDataAsString();
+      return md.substring(0, 500) + (md.length > 500 ? "..." : "");
+    }
+  } catch (err) {
+    return "(preview_error: " + err.message.substring(0, 80) + ")";
+  }
+  return "";
+}
+
+function Robin_InferDriveTags_(name, mimeType, preview, path) {
+  var text = (String(name || "") + "\n" + String(path || "") + "\n" + String(preview || "")).toLowerCase();
+  var rules = [
+    { category: "ecosistema_ia", tags: ["ia", "sunny", "cowork"], kws: ["thousand sunny", "gas", "webapp", "telegram", "cowork", "codex", "claude", "gemini", "zoro", "nami", "sanji", "obsidian", "markdown", "ollama", "opencode", "qwen", "migracion"] },
+    { category: "agape", tags: ["agape", "simbolico"], kws: ["agape", "mito", "jung", "hillman", "tolkien", "arquetip", "cosmologia", "sagrado", "alquimia"] },
+    { category: "astrologia", tags: ["astrologia"], kws: ["astrolog", "carta natal", "luna en", "sol en", "ascendente", "sideral", "tropical"] },
+    { category: "personal", tags: ["personal"], kws: ["reflexion personal", "relacion", "pareja", "emocion", "adulto funcional", "sueno"] },
+    { category: "ocio", tags: ["ocio"], kws: ["elden ring", "videojuego", "gaming", "dark souls"] }
+  ];
+
+  var best = { category: "general", tags: ["general"], score: 0, hits: [] };
+  for (var i = 0; i < rules.length; i++) {
+    var score = 0;
+    var hits = [];
+    for (var j = 0; j < rules[i].kws.length; j++) {
+      if (text.indexOf(rules[i].kws[j]) !== -1) {
+        score++;
+        hits.push(rules[i].kws[j]);
+      }
+    }
+    if (score > best.score) {
+      best = { category: rules[i].category, tags: rules[i].tags.slice(), score: score, hits: hits };
+    }
+  }
+
+  var typeTag = Robin_MimeToTag_(mimeType, name);
+  if (typeTag && best.tags.indexOf(typeTag) === -1) best.tags.push(typeTag);
+  if (/\.md$/i.test(name) && best.tags.indexOf("markdown") === -1) best.tags.push("markdown");
+
+  var confidence = Math.min(100, Math.max(20, best.score * 20 + (preview ? 10 : 0)));
+  return {
+    category: best.category,
+    tags: best.tags,
+    confidence: confidence,
+    matched: best.hits
+  };
+}
+
+function Robin_MimeToTag_(mimeType, name) {
+  if (mimeType === "application/vnd.google-apps.document") return "gdoc";
+  if (mimeType === "application/vnd.google-apps.spreadsheet") return "sheet";
+  if (mimeType === "application/vnd.google-apps.presentation") return "slides";
+  if (mimeType === "text/markdown" || /\.md$/i.test(name || "")) return "markdown";
+  if (/^image\//.test(mimeType || "")) return "imagen";
+  if (/pdf$/.test(mimeType || "")) return "pdf";
+  if (/^text\//.test(mimeType || "")) return "texto";
+  return "archivo";
+}
+
+function Robin_BuildDriveTagLine_(classification) {
+  return ROBIN_DRIVE_TAG_MARKER_ + " v1 tags=" + classification.tags.join(",") +
+    " category=" + classification.category +
+    " confidence=" + classification.confidence +
+    " taggedAt=" + new Date().toISOString();
+}
+
+function Robin_AppendDriveDescriptionTag_(description, tagLine) {
+  description = String(description || "").trim();
+  if (!description) return tagLine;
+  return description + "\n\n" + tagLine;
+}
+
+function Robin_EnsureDriveTagsSheet_() {
+  var ss = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty("BITACORA_ID"));
+  var sheet = ss.getSheetByName("DriveTags");
+  if (!sheet) {
+    sheet = ss.insertSheet("DriveTags");
+    sheet.getRange("A1:I1").setValues([[
+      "Timestamp", "ArchivoID", "Nombre", "MimeType", "Ruta",
+      "Categoria", "Tags", "Confianza", "TagLine"
+    ]]);
+    sheet.getRange("A1:I1").setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function Robin_LogDriveTag_(file, path, classification, tagLine) {
+  var sheet = Robin_EnsureDriveTagsSheet_();
+  sheet.appendRow([
+    new Date(),
+    file.getId(),
+    file.getName(),
+    file.getMimeType(),
+    path,
+    classification.category,
+    classification.tags.join(","),
+    classification.confidence,
+    tagLine
+  ]);
+
+  var driveIndex = getSheet_("DriveIndex");
+  if (driveIndex) {
+    driveIndex.appendRow([
+      new Date(),
+      file.getName(),
+      file.getMimeType(),
+      path,
+      classification.category,
+      "tags=" + classification.tags.join(",") + "; confidence=" + classification.confidence
+    ]);
+  }
+}
+
+function Cowork_ContinuarHilo_(tema, resumen) {
+  var topic = tema || "ollama-opencode-drive-obsidian";
+  var summary = resumen || "Handoff cowork: Ollama/OpenCode/Qwen no es viable como sala de maquinas principal con 16GB RAM y 4GB VRAM. Continuar por ruta soberana practica: GAS/Zoro para Drive y migracion Markdown, Python solo cuando haya credenciales OAuth. Pendientes: confirmar folderId de la boveda Obsidian sincronizada, ejecutar dry-run recursivo, y usar drive_etiquetar_pendiente para etiquetado seguro.";
+
+  try {
+    logBitacora_("cowork", "usopp", "SIGUIENTE_HILO [" + topic + "]: " + summary, "cowork-handoff", 0);
+  } catch (_) {}
+
+  try {
+    guardarMemoria_("cowork_handoff", "[" + topic + "] " + summary.substring(0, 500), "codex");
+  } catch (_) {}
+
+  try {
+    agregarTarea_("Continuar hilo cowork " + topic + ": confirmar folderId boveda Obsidian, dry-run migracion recursiva y etiquetado Drive seguro.", "zoro");
+  } catch (_) {}
+
+  return { ok: true, tema: topic, resumen: summary, timestamp: new Date().toISOString() };
 }
 
 
