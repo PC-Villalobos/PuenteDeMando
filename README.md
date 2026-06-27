@@ -1,6 +1,13 @@
-# Thousand Sunny - Ecosistema Multi-IA
+# Puente de Mando — la consola del Capitán
 
-Arquitectura multi-agente con Google Apps Script, Google Drive y tres motores de IA (Gemini, ChatGPT, Claude) conectados a traves de una bitacora compartida en Google Sheets.
+La **consola operacional** del Thousand Sunny: la capa de presencia y notificación del barco — no su cerebro ni su fuente de verdad (eso vive en el repo [ThousandSunny](https://github.com/PC-Villalobos/ThousandSunny) y en el Vault de Obsidian, la *maceta de Groot*).
+
+> **Estado canónico (2026-06-27).** Esto **ya no es** un "ecosistema multi-IA Gemini/ChatGPT/Claude sobre GAS". En la arquitectura soberana (`bridge-linux/ARQUITECTURA.md` en ThousandSunny):
+> - el **motor** se consolida en **DeepSeek** (y modelos locales); los modelos son **actores intercambiables**, no proveedores fijos.
+> - el **GAS** migra a **apps HTML ejecutables en el escritorio Linux**, vinculadas a la VPS (Laboon) + Obsidian Sync.
+> - la inteligencia vive en el **sistema** (memoria + continuidad + herramientas), no en el modelo — ver `TESIS.md`.
+>
+> Lo de abajo es la **implementación actual (GAS, legacy en migración)**.
 
 ## Archivos
 
@@ -30,7 +37,11 @@ Google Apps Script (doPost/doGet)
 Webapp HTML (polling cada 10s)
 ```
 
-## Tripulacion (Nakamas)
+## Tripulacion (asignación de motores — legacy, en migración a DeepSeek)
+
+> Esta asignación modelo↔nakama es del estrato GAS. En el canon, el nakama es un
+> **personaje** y el modelo un **actor intercambiable** (`TEATRO.md`); el motor se
+> unifica en DeepSeek/local. Tabla conservada como referencia de la implementación actual.
 
 - **Sanji** (Gemini): Evaluacion y procesamiento de contenido
 - **Zoro** (Gemini): Discernimiento y ejecucion en Drive
