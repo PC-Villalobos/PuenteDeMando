@@ -55,3 +55,35 @@ llamadas "Bug 2" en distintas versiones. Acordar cual es el Bug 2 objetivo
 
 - El `unauthorized` de la Bitacora es **buena senal**: el token vive en @56.
 - No forzar el token. No desplegar hacia atras.
+
+## Pendientes (follow-up) — estado 2026-07-12
+
+Anclados para que no se evaporen. Trazados tambien en el comentario de PR #8.
+
+### Seguridad (lado vivo; el repo no toca produccion)
+- **Rotar** las claves OpenAI y Gemini: estuvieron literales en `fijarKeys()` de
+  @56 y la proteccion de push las marco como reales -> tratarlas como comprometidas.
+- Neutralizar `fijarKeys()` tambien en el **deploy vivo** (en el repo ya es un stub
+  que lanza error), para que las claves vivan solo en Script Properties.
+- Copias temporales locales con material sensible: **eliminadas** por el capitan
+  (`gas-prod-pull-20260712`, `puentedemando-recanonize-20260712`).
+
+### Endpoints no desplegados (decision: PR posterior, NO en #8)
+Cuatro handlers existian en el repo pero no en produccion @56 -> estaban muertos en
+vivo. #8 es solo recanonizacion segura y no los incluye. Si se quieren vivos, van en
+una PR aparte, reaplicados sobre @56 y con guard/token donde corresponda:
+- `cowork_continuar_hilo`
+- `drive_etiquetar_pendiente`
+- `markdown`
+- `md`
+
+Preservados en el historial del repo en `cca68e7` (canon viejo). No se pierden.
+
+### Bug 2 (orden del eco Telegram)
+Sigue **abierto**. #8 lo preservo tal cual @56 (envio a Telegram antes de
+`procesarMensajeCapitan_`), no lo arreglo. Acordar cual es el Bug 2 objetivo antes
+de aplicar el fix encima del canon.
+
+### Orden de merge
+1. PR #7 (este dictamen).
+2. PR #8 (recanonizacion @56), apilado sobre #7.
