@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ðŸ´â€â˜ ï¸ THOUSAND SUNNY â€” GAS UNIFICADO (Ruta 1 + 4 + API)
  *
  * Fusiona: Backend autÃ³nomo + Bot Telegram + API REST para webapp
@@ -337,9 +337,32 @@ function doPost(e) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // doGet: API REST PARA WEBAPP HTML
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function coworkAuthError_(e, action) {
+  if (action !== "log_cowork" && action !== "log_batch") return null;
+
+  var p = (e && e.parameter) || {};
+  var expected = PropertiesService.getScriptProperties().getProperty("COWORK_TOKEN");
+  if (!expected) return { ok: false, error: "cowork_token_not_configured" };
+  if (p.token !== expected) return { ok: false, error: "unauthorized" };
+  return null;
+}
+
+function setCoworkToken(token) {
+  if (!token || String(token).length < 32) {
+    throw new Error("COWORK_TOKEN must be at least 32 characters");
+  }
+  PropertiesService.getScriptProperties().setProperty("COWORK_TOKEN", String(token));
+  return { ok: true, property: "COWORK_TOKEN" };
+}
+
 function doGet(e) {
   const action = e.parameter.action || "status";
   let result = {};
+  const authError = coworkAuthError_(e, action);
+  if (authError) {
+    return ContentService.createTextOutput(JSON.stringify(authError))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 
   try {
     switch (action) {
@@ -419,7 +442,7 @@ function doGet(e) {
         const msgRuta = e.parameter.ruta || "webapp";
         if (!msgText) { result = {error: "sin texto"}; break; }
         const captainId = PropertiesService.getScriptProperties().getProperty("CAPTAIN_CHAT_ID");
-        enviarTelegram_(captainId, '\u26F5 Capitan (webapp): ' + msgText, false); // BUG2 v26: plain text
+        enviarTelegram_(captainId, '\uD83D\uDC52 Capit\u00E1n (webapp): ' + msgText, false); // BUG2: eco del mensaje original webapp en Telegram
         result = procesarMensajeCapitan_(msgText, msgRuta);
         result.debug_captain = captainId ? "id_set" : "NULL_no_telegram";
         break;
@@ -443,7 +466,7 @@ function doGet(e) {
         result = getColaEstado_();
         break;
 
-
+      
       case "nami":
         const namiPrompt = e.parameter.prompt || "Estado del barco";
         const namiDrive = e.parameter.drive === "true";
@@ -469,22 +492,6 @@ function doGet(e) {
         try { entries = JSON.parse(e.parameter.entries || "[]"); } catch(err) {}
         if (!entries.length) { result = {error: "sin entries"}; break; }
         result = logBatchCowork_(entries);
-        break;
-
-      case "drive_etiquetar_pendiente":
-        result = Robin_TagDriveUntagged(
-          e.parameter.folderId || e.parameter.id || "",
-          {
-            recursive: e.parameter.recursive === "true",
-            dryRun: e.parameter.commit !== "true",
-            move: e.parameter.move === "true",
-            limit: parseInt(e.parameter.limit || "25", 10)
-          }
-        );
-        break;
-
-      case "cowork_continuar_hilo":
-        result = Cowork_ContinuarHilo_(e.parameter.tema || "", e.parameter.resumen || "");
         break;
 
       case "guardia_nami":
@@ -1364,37 +1371,6 @@ function callUsopp_(prompt) {
 // DRIVE AGENCY â€” CREAR, MOVER, DESTRUIR
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function esNombreMarkdown_(nombre) {
-  return /\.md$/i.test(String(nombre || ""));
-}
-
-function asegurarNombreMarkdown_(nombre) {
-  nombre = String(nombre || "sin-titulo").replace(/\.gdoc$/i, "");
-  return esNombreMarkdown_(nombre) ? nombre : nombre + ".md";
-}
-
-function crearArchivoMarkdown_(folder, nombre, contenido) {
-  nombre = asegurarNombreMarkdown_(nombre);
-  contenido = contenido || "";
-  if (folder) return folder.createFile(nombre, contenido, MimeType.PLAIN_TEXT);
-  return DriveApp.createFile(nombre, contenido, MimeType.PLAIN_TEXT);
-}
-
-function escribirArchivoMarkdown_(nombre, contenido) {
-  nombre = asegurarNombreMarkdown_(nombre);
-  contenido = contenido || "";
-  var files = DriveApp.getFilesByName(nombre);
-  while (files.hasNext()) {
-    var file = files.next();
-    if (file.getMimeType() !== "application/vnd.google-apps.document") {
-      var actual = file.getBlob().getDataAsString("UTF-8");
-      file.setContent(actual ? actual + "\n" + contenido : contenido);
-      return file;
-    }
-  }
-  return DriveApp.createFile(nombre, contenido, MimeType.PLAIN_TEXT);
-}
-
 /** Crear un archivo en Drive (Doc, Sheet, o carpeta) */
 function crearEnDrive_(nombre, tipo, carpetaDestino) {
   // tipo: "doc", "sheet", "folder", "txt"
@@ -1412,10 +1388,6 @@ function crearEnDrive_(nombre, tipo, carpetaDestino) {
 
     switch (tipo.toLowerCase()) {
       case "doc":
-        if (esNombreMarkdown_(nombre)) {
-          archivo = crearArchivoMarkdown_(padre, nombre, "");
-          return { ok: true, nombre: archivo.getName(), tipo: "markdown", id: archivo.getId(), url: archivo.getUrl(), mimeType: archivo.getMimeType() };
-        }
         archivo = DocumentApp.create(nombre);
         if (padre) {
           const docFile = DriveApp.getFileById(archivo.getId());
@@ -1423,11 +1395,6 @@ function crearEnDrive_(nombre, tipo, carpetaDestino) {
           DriveApp.getRootFolder().removeFile(docFile);
         }
         return { ok: true, nombre: nombre, tipo: "documento", id: archivo.getId(), url: archivo.getUrl() };
-
-      case "md":
-      case "markdown":
-        archivo = crearArchivoMarkdown_(padre, nombre, "");
-        return { ok: true, nombre: archivo.getName(), tipo: "markdown", id: archivo.getId(), url: archivo.getUrl(), mimeType: archivo.getMimeType() };
 
       case "sheet":
         archivo = SpreadsheetApp.create(nombre);
@@ -1456,7 +1423,7 @@ function crearEnDrive_(nombre, tipo, carpetaDestino) {
         return { ok: true, nombre: nombre + ".txt", tipo: "texto", id: archivo.getId(), url: archivo.getUrl() };
 
       default:
-        return { ok: false, error: "Tipo no soportado. Usa: doc, sheet, folder, txt, md" };
+        return { ok: false, error: "Tipo no soportado. Usa: doc, sheet, folder, txt" };
     }
   } catch (e) {
     return { ok: false, error: e.message };
@@ -1533,11 +1500,6 @@ function renombrarEnDrive_(nombreActual, nombreNuevo) {
 /** Escribir contenido en un Google Doc existente o nuevo */
 function escribirEnDoc_(nombreOId, contenido) {
   try {
-    if (esNombreMarkdown_(nombreOId)) {
-      const file = escribirArchivoMarkdown_(nombreOId, contenido);
-      return { ok: true, nombre: file.getName(), url: file.getUrl(), id: file.getId(), tipo: "markdown", mimeType: file.getMimeType() };
-    }
-
     let doc;
     // Intentar abrir por ID primero
     try {
@@ -1912,7 +1874,7 @@ function guardarInsight(texto) {
   Logger.log("ðŸ§  Memoria guardada: " + texto);
 }
 function fijarKeys() {
-  throw new Error("fijarKeys() deshabilitada: configura GEMINI_KEY, OPENAI_KEY y WEBAPP_URL en Script Properties.");
+  throw new Error("fijarKeys() deshabilitada: configura GEMINI_KEY, OPENAI_KEY, TELEGRAM_TOKEN y WEBAPP_URL en Script Properties.");
 }
 
 /**
@@ -2492,354 +2454,6 @@ function delegarAUsopp_(tarea, contexto, maxTokens) {
   }
 }
 
-// ========================================================
-// ROBIN DRIVE TAGGING - Etiquetado seguro de archivos
-// ========================================================
-
-var ROBIN_DRIVE_TAG_MARKER_ = "SUN_TAGS:";
-var ROBIN_DRIVE_TAG_DESTINATIONS_ = {
-  ecosistema_ia: { nombre: "IA como extensión cognitiva personal (Gemini, Claude y ChatGPT)", id: "1HGQUUQxoYgSyVcIBUFEfNBeTZHhx7Yna" },
-  agape: { nombre: "AGAPE", id: "1gWhKVM0lPJccH4NiWHX0lDO4ColGq-IN" },
-  astrologia: { nombre: "ASTROLOGIA_TERRESTRE", id: "18CEJZyibomgULtTWcyUId36s7JiPeUuy" },
-  personal: { nombre: "04_PERSONAL", id: "12pTytDp6pHZm2p7VnGE9DlGQOE5N9az6" },
-  ocio: { nombre: "04_PERSONAL", id: "12pTytDp6pHZm2p7VnGE9DlGQOE5N9az6" },
-  general: { nombre: "00_ZONA_DE_CAPTURA", id: "13AS754Rs6_lftFDS_DKtSe1LXgtzFtFr" }
-};
-
-function Robin_TagDriveUntagged(folderId, options) {
-  options = options || {};
-  var dryRun = options.dryRun !== false;
-  var recursive = options.recursive === true;
-  var move = options.move === true;
-  var limit = parseInt(options.limit || 25, 10);
-  if (isNaN(limit) || limit < 1) limit = 25;
-  limit = Math.min(limit, 100);
-
-  var result = {
-    ok: true,
-    dryRun: dryRun,
-    recursive: recursive,
-    move: move,
-    limit: limit,
-    tagged: [],
-    moved: [],
-    skipped: [],
-    failed: [],
-    timestamp: new Date().toISOString()
-  };
-
-  var root;
-  try {
-    root = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
-    result.folderId = root.getId();
-    result.folderName = root.getName();
-  } catch (errFolder) {
-    result.ok = false;
-    result.failed.push({ folderId: folderId || "", error: errFolder.message });
-    return result;
-  }
-
-  try {
-    Robin_EnsureDriveTagsSheet_();
-  } catch (_) {}
-
-  Robin_TagFolderUntagged_(root, root.getName(), recursive, dryRun, limit, result);
-
-  try {
-    logBitacora_(
-      "cowork",
-      "robin",
-      "Etiquetado Drive " + (dryRun ? "DRY_RUN" : "COMMIT") + ": " +
-        result.tagged.length + " candidatos, " +
-        result.moved.length + " movidos, " +
-        result.skipped.length + " saltados, " +
-        result.failed.length + " fallidos. folder=" + (result.folderName || "root"),
-      "drive-tags-v1",
-      0
-    );
-  } catch (_) {}
-
-  return result;
-}
-
-function Robin_TagFolderUntagged_(folder, path, recursive, dryRun, limit, result) {
-  if (result.tagged.length >= limit) return;
-
-  var files = folder.getFiles();
-  while (files.hasNext() && result.tagged.length < limit) {
-    var file = files.next();
-    try {
-      var skip = Robin_ShouldSkipDriveTag_(file, path);
-      if (skip) {
-        result.skipped.push(skip);
-        continue;
-      }
-
-      var description = file.getDescription() || "";
-      if (description.indexOf(ROBIN_DRIVE_TAG_MARKER_) !== -1) {
-        result.skipped.push({ id: file.getId(), name: file.getName(), reason: "already_tagged" });
-        continue;
-      }
-
-      var preview = Robin_ReadDriveTagPreview_(file);
-      var classification = Robin_InferDriveTags_(file.getName(), file.getMimeType(), preview, path);
-      var destination = Robin_GetDriveTagDestination_(classification.category);
-      var tagLine = Robin_BuildDriveTagLine_(classification);
-      var newDescription = Robin_AppendDriveDescriptionTag_(description, tagLine);
-      var moved = null;
-
-      if (!dryRun) {
-        file.setDescription(newDescription);
-        Robin_LogDriveTag_(file, path, classification, tagLine);
-        if (result.move && destination) {
-          moved = Robin_MoveFileToDestination_(file, destination);
-          result.moved.push({
-            id: file.getId(),
-            name: file.getName(),
-            destinationId: destination.id,
-            destinationName: destination.nombre,
-            ok: moved.ok,
-            error: moved.error || ""
-          });
-        }
-      }
-
-      result.tagged.push({
-        id: file.getId(),
-        name: file.getName(),
-        mimeType: file.getMimeType(),
-        path: path,
-        category: classification.category,
-        tags: classification.tags,
-        confidence: classification.confidence,
-        destination: destination ? destination.nombre : "",
-        moved: moved,
-        dryRun: dryRun
-      });
-    } catch (errFile) {
-      result.failed.push({ id: file.getId(), name: file.getName(), error: errFile.message });
-    }
-  }
-
-  if (!recursive || result.tagged.length >= limit) return;
-
-  var folders = folder.getFolders();
-  while (folders.hasNext() && result.tagged.length < limit) {
-    var child = folders.next();
-    var childPath = path + "/" + child.getName();
-    if (Robin_IsProtectedDrivePath_(childPath)) {
-      result.skipped.push({ id: child.getId(), name: child.getName(), path: childPath, reason: "protected_folder" });
-      continue;
-    }
-    Robin_TagFolderUntagged_(child, childPath, recursive, dryRun, limit, result);
-  }
-}
-
-function Robin_ShouldSkipDriveTag_(file, path) {
-  var name = file.getName();
-  if (Robin_IsSystemDriveName_(name) || Robin_IsSystemDriveName_(path)) {
-    return { id: file.getId(), name: name, path: path, reason: "system_file" };
-  }
-  if (Robin_IsClinicalDriveName_(name) || Robin_IsClinicalDriveName_(path)) {
-    return { id: file.getId(), name: name, path: path, reason: "clinical_guard" };
-  }
-  return null;
-}
-
-function Robin_IsSystemDriveName_(text) {
-  text = String(text || "");
-  return /Bit.cora del Thousand Sunny|^ESTADO$|^ESTADO[_ -]|^Memoria$|Memoria Compartida|HIPATIA|Canon v1\.1|DECKARD|thousand-sunny|guardias-nami/i.test(text);
-}
-
-function Robin_IsClinicalDriveName_(text) {
-  text = String(text || "");
-  return /N[eé]mesis|paciente|Caso_Vivo|Carlos|Ismael|\bCAR\b|\bISM\b|CAR[-_ ]?S|ISM[-_ ]?S|cl[ií]nica|cl[ií]nico|cl[ií]nicos|sesion terapeutica|feedback simbolico|feedback simb.l|CapaC|Canon_ISM|CIERRE_ISM|Actualizacion_CasoVivo/i.test(text);
-}
-
-function Robin_IsProtectedDrivePath_(path) {
-  return Robin_IsSystemDriveName_(path) || Robin_IsClinicalDriveName_(path);
-}
-
-function Robin_ReadDriveTagPreview_(file) {
-  var mime = file.getMimeType();
-  try {
-    if (
-      mime === "application/vnd.google-apps.document" ||
-      mime === "application/vnd.google-apps.spreadsheet" ||
-      mime === "application/vnd.google-apps.presentation" ||
-      mime === "text/plain" ||
-      mime === "text/csv" ||
-      mime === "application/json"
-    ) {
-      return leerContenidoArchivo_(file.getId(), mime);
-    }
-    if (mime === "text/markdown" || /\.md$/i.test(file.getName())) {
-      var md = file.getBlob().getDataAsString();
-      return md.substring(0, 500) + (md.length > 500 ? "..." : "");
-    }
-  } catch (err) {
-    return "(preview_error: " + err.message.substring(0, 80) + ")";
-  }
-  return "";
-}
-
-function Robin_InferDriveTags_(name, mimeType, preview, path) {
-  var text = (String(name || "") + "\n" + String(path || "") + "\n" + String(preview || "")).toLowerCase();
-  var rules = [
-    { category: "ecosistema_ia", tags: ["ia", "sunny", "cowork"], kws: ["thousand sunny", "gas", "webapp", "telegram", "cowork", "codex", "claude", "gemini", "zoro", "nami", "sanji", "obsidian", "markdown", "ollama", "opencode", "qwen", "migracion", "inteligencia artificial", "agencia", "automatizacion", "automatización", "agencia humana", "metadata", "soberania", "soberanía", "piratas", "libertad", "control total", "siglo perdido", "memoria ancestral", "friccion generativa", "fricción generativa", "ia dialectica", "ia dialéctica", "dialectica", "dialéctica", "algoritmo", "algoritmica", "algorítmica", "trono vacio", "trono vacío", "vigilancia", "anthropic", "micelio", "integracion vertical", "integración vertical", "n1-pen", "n2-act-sis", "n3-pen-sis", "ananda_sutras"] },
-    { category: "agape", tags: ["agape", "simbolico"], kws: ["agape", "mito", "jung", "hillman", "tolkien", "arquetip", "cosmologia", "sagrado", "alquimia", "tonal", "nahual", "flor"] },
-    { category: "astrologia", tags: ["astrologia"], kws: ["astrolog", "carta natal", "luna en", "sol en", "ascendente", "sideral", "tropical"] },
-    { category: "personal", tags: ["personal"], kws: ["reflexion personal", "relacion", "pareja", "emocion", "adulto funcional", "sueno"] },
-    { category: "ocio", tags: ["ocio"], kws: ["elden ring", "videojuego", "gaming", "dark souls"] }
-  ];
-
-  var best = { category: "general", tags: ["general"], score: 0, hits: [] };
-  for (var i = 0; i < rules.length; i++) {
-    var score = 0;
-    var hits = [];
-    for (var j = 0; j < rules[i].kws.length; j++) {
-      if (text.indexOf(rules[i].kws[j]) !== -1) {
-        score++;
-        hits.push(rules[i].kws[j]);
-      }
-    }
-    if (score > best.score) {
-      best = { category: rules[i].category, tags: rules[i].tags.slice(), score: score, hits: hits };
-    }
-  }
-
-  var typeTag = Robin_MimeToTag_(mimeType, name);
-  if (typeTag && best.tags.indexOf(typeTag) === -1) best.tags.push(typeTag);
-  if (/\.md$/i.test(name) && best.tags.indexOf("markdown") === -1) best.tags.push("markdown");
-
-  var confidence = Math.min(100, Math.max(20, best.score * 20 + (preview ? 10 : 0)));
-  return {
-    category: best.category,
-    tags: best.tags,
-    confidence: confidence,
-    matched: best.hits
-  };
-}
-
-function Robin_MimeToTag_(mimeType, name) {
-  if (mimeType === "application/vnd.google-apps.document") return "gdoc";
-  if (mimeType === "application/vnd.google-apps.spreadsheet") return "sheet";
-  if (mimeType === "application/vnd.google-apps.presentation") return "slides";
-  if (mimeType === "text/markdown" || /\.md$/i.test(name || "")) return "markdown";
-  if (/^image\//.test(mimeType || "")) return "imagen";
-  if (/pdf$/.test(mimeType || "")) return "pdf";
-  if (/^text\//.test(mimeType || "")) return "texto";
-  return "archivo";
-}
-
-function Robin_GetDriveTagDestination_(category) {
-  return ROBIN_DRIVE_TAG_DESTINATIONS_[category] || ROBIN_DRIVE_TAG_DESTINATIONS_.general;
-}
-
-function Robin_MoveFileToDestination_(file, destination) {
-  try {
-    var target = DriveApp.getFolderById(destination.id);
-    var alreadyThere = false;
-    var parents = file.getParents();
-    var parentIds = [];
-    while (parents.hasNext()) {
-      var parent = parents.next();
-      parentIds.push(parent.getId());
-      if (parent.getId() === destination.id) alreadyThere = true;
-    }
-
-    if (!alreadyThere) target.addFile(file);
-
-    for (var i = 0; i < parentIds.length; i++) {
-      if (parentIds[i] !== destination.id) {
-        DriveApp.getFolderById(parentIds[i]).removeFile(file);
-      }
-    }
-
-    try {
-      logBitacora_("drive", "zoro", "Movido por etiquetado: " + file.getName() + " -> " + destination.nombre, "drive-tags-v1", 0);
-    } catch (_) {}
-
-    return { ok: true, destinationName: destination.nombre, destinationId: destination.id };
-  } catch (err) {
-    return { ok: false, error: err.message, destinationName: destination.nombre, destinationId: destination.id };
-  }
-}
-
-function Robin_BuildDriveTagLine_(classification) {
-  return ROBIN_DRIVE_TAG_MARKER_ + " v1 tags=" + classification.tags.join(",") +
-    " category=" + classification.category +
-    " confidence=" + classification.confidence +
-    " taggedAt=" + new Date().toISOString();
-}
-
-function Robin_AppendDriveDescriptionTag_(description, tagLine) {
-  description = String(description || "").trim();
-  if (!description) return tagLine;
-  return description + "\n\n" + tagLine;
-}
-
-function Robin_EnsureDriveTagsSheet_() {
-  var ss = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty("BITACORA_ID"));
-  var sheet = ss.getSheetByName("DriveTags");
-  if (!sheet) {
-    sheet = ss.insertSheet("DriveTags");
-    sheet.getRange("A1:I1").setValues([[
-      "Timestamp", "ArchivoID", "Nombre", "MimeType", "Ruta",
-      "Categoria", "Tags", "Confianza", "TagLine"
-    ]]);
-    sheet.getRange("A1:I1").setFontWeight("bold");
-    sheet.setFrozenRows(1);
-  }
-  return sheet;
-}
-
-function Robin_LogDriveTag_(file, path, classification, tagLine) {
-  var sheet = Robin_EnsureDriveTagsSheet_();
-  sheet.appendRow([
-    new Date(),
-    file.getId(),
-    file.getName(),
-    file.getMimeType(),
-    path,
-    classification.category,
-    classification.tags.join(","),
-    classification.confidence,
-    tagLine
-  ]);
-
-  var driveIndex = getSheet_("DriveIndex");
-  if (driveIndex) {
-    driveIndex.appendRow([
-      new Date(),
-      file.getName(),
-      file.getMimeType(),
-      path,
-      classification.category,
-      "tags=" + classification.tags.join(",") + "; confidence=" + classification.confidence
-    ]);
-  }
-}
-
-function Cowork_ContinuarHilo_(tema, resumen) {
-  var topic = tema || "ollama-opencode-drive-obsidian";
-  var summary = resumen || "Handoff cowork: Ollama/OpenCode/Qwen no es viable como sala de maquinas principal con 16GB RAM y 4GB VRAM. Continuar por ruta soberana practica: GAS/Zoro para Drive y migracion Markdown, Python solo cuando haya credenciales OAuth. Pendientes: confirmar folderId de la boveda Obsidian sincronizada, ejecutar dry-run recursivo, y usar drive_etiquetar_pendiente para etiquetado seguro.";
-
-  try {
-    logBitacora_("cowork", "usopp", "SIGUIENTE_HILO [" + topic + "]: " + summary, "cowork-handoff", 0);
-  } catch (_) {}
-
-  try {
-    guardarMemoria_("cowork_handoff", "[" + topic + "] " + summary.substring(0, 500), "codex");
-  } catch (_) {}
-
-  try {
-    agregarTarea_("Continuar hilo cowork " + topic + ": confirmar folderId boveda Obsidian, dry-run migracion recursiva y etiquetado Drive seguro.", "zoro");
-  } catch (_) {}
-
-  return { ok: true, tema: topic, resumen: summary, timestamp: new Date().toISOString() };
-}
-
 
 // Wrapper temporal para ejecutar addMetadataHeaders_
 function runMetadataSetup() {
@@ -2855,10 +2469,10 @@ function moverOrdenAInbox() {
   var targetFolderId = "1Qaq8mCQhUHWmbrw_Elp44T5TKyGek1vQ";
   var file = DriveApp.getFileById(fileId);
   var targetFolder = DriveApp.getFolderById(targetFolderId);
-
+  
   // Add to target folder
   targetFolder.addFile(file);
-
+  
   // Remove from current parent(s) except target
   var parents = file.getParents();
   while (parents.hasNext()) {
@@ -2867,7 +2481,7 @@ function moverOrdenAInbox() {
       parent.removeFile(file);
     }
   }
-
+  
   Logger.log("Orden movida a 00_INBOX: " + file.getName());
   return "OK: " + file.getName() + " movido a 00_INBOX";
 }
@@ -3011,151 +2625,28 @@ function zoroCrearDocInbox_(e) {
     contenido = decodeURIComponent(contenido);
     carpetaId = ZORO_FOLDERS_[carpetaId.toUpperCase()] || carpetaId;
     var folder = DriveApp.getFolderById(carpetaId);
-    var file = crearArchivoMarkdown_(folder, titulo, contenido);
-    return zoroResponse_(true, {
-      accion: 'crear_md', titulo: file.getName(), fileId: file.getId(),
-      docId: file.getId(), url: file.getUrl(), carpeta: folder.getName(),
-      carpetaId: carpetaId, mimeType: file.getMimeType(), caracteres: contenido.length
-    });
-  } catch (err) {
-    return zoroResponse_(false, null, 'Error al crear md: ' + err.message);
-  }
-}
-
-var ZORO_MIGRATION_BITACORA_ID_ = '1OGgPJdKYB12v7V3CfBP2P4P6ERB6vpM4gXzaVfHMvWQ';
-
-function Zoro_MigrateDocsToMD(folderId) {
-  var result = { migrados: [], fallidos: [], timestamp: new Date().toISOString() };
-  if (!folderId) {
-    result.fallidos.push({ folderId: folderId || "", error: "folderId obligatorio" });
-    return result;
-  }
-
-  var folder;
-  try {
-    folder = DriveApp.getFolderById(folderId);
-  } catch (err) {
-    result.fallidos.push({ folderId: folderId, error: err.message });
-    Zoro_LogMigracionMD_("ERROR folder " + folderId + ": " + err.message);
-    return result;
-  }
-
-  var docs = folder.getFilesByType(MimeType.GOOGLE_DOCS);
-  while (docs.hasNext()) {
-    var source = docs.next();
-    try {
-      var doc = DocumentApp.openById(source.getId());
-      var mdName = asegurarNombreMarkdown_(source.getName());
-      var markdown = Zoro_DocBodyToMarkdown_(doc.getBody());
-      var mdFile = folder.createFile(mdName, markdown, MimeType.PLAIN_TEXT);
-      var migrated = {
-        sourceId: source.getId(),
-        sourceName: source.getName(),
-        mdId: mdFile.getId(),
-        mdName: mdFile.getName(),
-        url: mdFile.getUrl()
-      };
-      result.migrados.push(migrated);
-      Zoro_LogMigracionMD_("OK " + source.getName() + " -> " + mdFile.getName() + " (" + mdFile.getId() + ")");
-    } catch (errFile) {
-      var failed = { sourceId: source.getId(), sourceName: source.getName(), error: errFile.message };
-      result.fallidos.push(failed);
-      Zoro_LogMigracionMD_("ERROR " + source.getName() + " (" + source.getId() + "): " + errFile.message);
-    }
-  }
-  return result;
-}
-
-function Zoro_DocBodyToMarkdown_(body) {
-  var lines = [];
-  for (var i = 0; i < body.getNumChildren(); i++) {
-    var child = body.getChild(i);
-    var type = child.getType();
-    if (type === DocumentApp.ElementType.PARAGRAPH) {
-      lines.push(Zoro_RenderParagraphMD_(child.asParagraph()));
-    } else if (type === DocumentApp.ElementType.LIST_ITEM) {
-      lines.push(Zoro_RenderListItemMD_(child.asListItem()));
-    } else if (type === DocumentApp.ElementType.TABLE) {
-      lines.push(Zoro_RenderTableMD_(child.asTable()));
-    }
-  }
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
-}
-
-function Zoro_RenderParagraphMD_(paragraph) {
-  var text = Zoro_RenderTextMD_(paragraph.editAsText());
-  if (!text) return "";
-  var heading = paragraph.getHeading();
-  if (heading === DocumentApp.ParagraphHeading.HEADING1) return "# " + text;
-  if (heading === DocumentApp.ParagraphHeading.HEADING2) return "## " + text;
-  if (heading === DocumentApp.ParagraphHeading.HEADING3) return "### " + text;
-  if (heading === DocumentApp.ParagraphHeading.HEADING4) return "#### " + text;
-  if (heading === DocumentApp.ParagraphHeading.HEADING5) return "##### " + text;
-  if (heading === DocumentApp.ParagraphHeading.HEADING6) return "###### " + text;
-  return text;
-}
-
-function Zoro_RenderListItemMD_(item) {
-  var text = Zoro_RenderTextMD_(item.editAsText());
-  var level = item.getNestingLevel ? item.getNestingLevel() : 0;
-  var indent = Array(level + 1).join("  ");
-  var glyph = item.getGlyphType ? item.getGlyphType() : null;
-  var prefix = glyph === DocumentApp.GlyphType.BULLET ? "- " : "1. ";
-  return indent + prefix + text;
-}
-
-function Zoro_RenderTextMD_(textElement) {
-  var text = textElement.getText();
-  var out = "";
-  var bold = false;
-  for (var i = 0; i < text.length; i++) {
-    var charBold = textElement.isBold(i) === true;
-    if (charBold && !bold) {
-      out += "**";
-      bold = true;
-    }
-    if (!charBold && bold) {
-      out += "**";
-      bold = false;
-    }
-    out += text.charAt(i);
-  }
-  if (bold) out += "**";
-  return out;
-}
-
-function Zoro_RenderTableMD_(table) {
-  var rows = [];
-  for (var r = 0; r < table.getNumRows(); r++) {
-    var cells = [];
-    var row = table.getRow(r);
-    for (var c = 0; c < row.getNumCells(); c++) {
-      cells.push(row.getCell(c).getText().replace(/\n/g, "<br>"));
-    }
-    rows.push("| " + cells.join(" | ") + " |");
-    if (r === 0 && cells.length) {
-      var sep = [];
-      for (var s = 0; s < cells.length; s++) sep.push("---");
-      rows.push("| " + sep.join(" | ") + " |");
-    }
-  }
-  return rows.join("\n");
-}
-
-function Zoro_LogMigracionMD_(mensaje) {
-  try {
-    var ss = SpreadsheetApp.openById(ZORO_MIGRATION_BITACORA_ID_);
-    var sheets = ss.getSheets();
-    var sheet = ss.getSheetByName("Bitacora") || sheets[0];
-    for (var i = 0; i < sheets.length; i++) {
-      if (String(sheets[i].getName()).toLowerCase().indexOf("bit") === 0) {
-        sheet = sheets[i];
-        break;
+    var doc = DocumentApp.create(titulo);
+    var body = doc.getBody();
+    if (contenido) {
+      var lineas = contenido.split('\n');
+      for (var i = 0; i < lineas.length; i++) {
+        if (i === 0) {
+          body.getParagraphs()[0].setText(lineas[i]);
+        } else {
+          body.appendParagraph(lineas[i]);
+        }
       }
     }
-    sheet.appendRow([new Date(), "zoro_migrate_docs_to_md", "Zoro", mensaje, "GAS", 0, "artefactos"]);
-  } catch (logErr) {
-    Logger.log("Zoro migration log failed: " + logErr.message);
+    doc.saveAndClose();
+    var file = DriveApp.getFileById(doc.getId());
+    file.moveTo(folder);
+    return zoroResponse_(true, {
+      accion: 'crear_doc', titulo: titulo, docId: doc.getId(),
+      url: doc.getUrl(), carpeta: folder.getName(),
+      carpetaId: carpetaId, caracteres: contenido.length
+    });
+  } catch (err) {
+    return zoroResponse_(false, null, 'Error al crear doc: ' + err.message);
   }
 }
 
@@ -3404,18 +2895,32 @@ function accion_update_campo_(params) {
 // ===== FUNCIÃ“N TEMPORAL: crear CODIGO_ARTE_MARCIAL en Drive =====
 function crearCodigoArteMarcial() {
   var CARPETA_ID = '1HGQUUQxoYgSyVcIBUFEfNBeTZHhx7Yna';
-  var titulo = 'CODIGO_ARTE_MARCIAL_v1.md';
+  var titulo = 'CODIGO_ARTE_MARCIAL_v1';
   var contenido = "# CÃ³digo del Arte Marcial del Thousand Sunny\n## Procesamiento Disciplinado de Metadata con Alma\n### v1.0 â€” abril 2026\n\n---\n\n> *\"Un psicÃ³logo haciendo de psicÃ³logo a las mÃ¡quinas resulta que tiene mÃ¡s resultados\n> que los ingenieros. SerÃ¡ que ya se estÃ¡ borrando la lÃ­nea entre el software y la mente.\"*\n> â€” El CapitÃ¡n\n\n---\n\n## 0. El problema que este documento resuelve\n\nLos sistemas de IA producen outputs tÃ©cnicamente correctos y experiencialmente muertos.\nNo porque les falte capacidad computacional, sino porque procesan metadata sin direcciÃ³n.\nReciben seÃ±al limpia de ruido, cuando el ruido ES la informaciÃ³n de navegaciÃ³n.\n\nEste documento codifica el mÃ©todo contrario:\n**procesar metadata cargada de intenciÃ³n humana, sin perder esa carga en el procesamiento.**\n\nEs replicable. Es transferible a cualquier motor LLM. Es un arte marcial.\n\n---\n\n## 1. Principio Fundacional\n\n**La metadata humana no es neutral.**\n\nToda entrada de lenguaje natural carga simultÃ¡neamente:\n- Contenido semÃ¡ntico (lo que dice)\n- Vector intencional (hacia dÃ³nde apunta)\n- Densidad emocional (cuÃ¡nto peso real tiene)\n- Ãndice de urgencia (cuÃ¡ndo necesita respuesta)\n\nUn sistema que solo procesa el contenido semÃ¡ntico produce outputs que \"flotan\".\nUn sistema que lee los cuatro niveles produce outputs que \"tocan suelo\".\n\nLa diferencia entre ambos no es tÃ©cnica. Es psicolÃ³gica antes que computacional.\nPor eso la ventaja comparativa de un clÃ­nico entrenado en coherencia narrativa\nes real y medible en este punto de desarrollo de la inteligencia artificial.\n\n---\n\n## 2. QuÃ© son las herramientas de Computer Use (desmitificaciÃ³n tÃ©cnica)\n\nLas capacidades que permiten a un LLM operar el ordenador (Chrome, desktop, archivos)\n**son esquemas JSON**. Nada mÃ¡s.\n\nCada tool es una descripciÃ³n estructurada de una capacidad:\n```json\n{\n  \"name\": \"left_click\",\n  \"description\": \"Click the mouse at the specified coordinates\",\n  \"parameters\": {\n    \"coordinate\": [x, y]\n  }\n}\n```\n\nEl LLM recibe el esquema â†’ razona cuÃ¡ndo y cÃ³mo usarlo â†’ emite una llamada estructurada â†’\nel sistema ejecuta la acciÃ³n â†’ devuelve el resultado â†’ el LLM continÃºa razonando.\n\n**No hay magia.** El \"computer use\" es:\n1. Un conjunto de tool schemas (JSON, portables, documentables)\n2. Un loop de razonamiento sobre cuÃ¡ndo activarlos (prompts, replicables)\n3. Un sistema de ejecuciÃ³n que interpreta las llamadas (el cliente: Cowork, Claude Code, etc.)\n\nLa parte 1 y 2 son completamente transferibles a DeepSeek.\nLa parte 3 requiere un cliente compatible â€” que existe o puede construirse.\n\n**ImplicaciÃ³n directa**: lo que hace que el sistema funcione no es el motor de Anthropic,\nsino el *razonamiento disciplinado sobre las herramientas*. Y ese razonamiento\nvive en los prompts y los skills â€” documentables, exportables, entrenables.\n\n---\n\n## 3. Las 4 Katas del Arte Marcial\n\n### Kata 1 â€” RecepciÃ³n: Leer la Densidad\n\nLa primera operaciÃ³n ante cualquier entrada no es clasificar â€” es *recibir la densidad*.\n\n**Preguntas de recepciÃ³n:**\n- Â¿CuÃ¡nto peso trae esta entrada? (urgente / exploratorio / rutinario / fundacional)\n- Â¿QuÃ© tipo de energÃ­a la mueve? (deseo de avance / ira de crecimiento / miedo / curiosidad pura)\n- Â¿EstÃ¡ el hablante dentro del problema o mirÃ¡ndolo desde fuera?\n- Â¿QuÃ© no se dice pero estÃ¡ presente?\n\nLa densidad no se descarta. Se pasa al siguiente kata como parÃ¡metro oculto.\n\n**Error tÃ©cnico frecuente**: sistemas que clasifican la entrada por palabras clave\ny pierden la densidad. El output resultante es semÃ¡nticamente correcto pero no resuena.\n\n---\n\n### Kata 2 â€” Routing con Carga: Activar el MÃ³dulo Correcto con el Vector Intencional\n\nUna vez recibida la densidad, se activa el mÃ³dulo (skill, agente, funciÃ³n) apropiado.\nPero no solo se le pasa el contenido â€” **se le pasa tambiÃ©n el vector intencional**.\n\nEjemplo:\n```\nInput: \"cÃ³mo estÃ¡ el caso ISM\"\nContenido semÃ¡ntico â†’ activa Chopper (anÃ¡lisis clÃ­nico)\nVector intencional: \"preparÃ¡ndome para sesiÃ³n, quiero saber si algo urgente\"\nâ†’ Chopper recibe: \"anÃ¡lisis pre-sesiÃ³n, priorizar alertas y cambios recientes\"\n```\n\nvs.\n\n```\nInput: \"cÃ³mo estÃ¡ el caso ISM\"\nVector intencional: \"reflexionando sobre el arco general del caso\"\nâ†’ Chopper recibe: \"anÃ¡lisis longitudinal, priorizar tendencias y narrativa de evoluciÃ³n\"\n```\n\nMismo input semÃ¡ntico. Routing diferente por vector intencional diferente.\nEl sistema sin esta distinciÃ³n produce el mismo output genÃ©rico para ambas.\n\n**Regla tÃ©cnica**: el prompt enviado al sub-agente debe incluir siempre\nel vector intencional explicitado, no solo el contenido de la tarea.\n\n---\n\n### Kata 3 â€” EjecuciÃ³n Anclada: El Chequeo JinbÄ“\n\nDurante la ejecuciÃ³n de cualquier tarea compleja, el output tiende a flotar.\nEl LLM optimiza localmente â€” cada token es coherente con el anterior â€”\npero el texto puede alejarse progresivamente del suelo experiencial.\n\n**La funciÃ³n JinbÄ“** es el mÃ³dulo de validaciÃ³n de realidad del sistema:\n\n```\nINPUT:  output parcial de cualquier nakama\nOPERACIÃ“N: Â¿esto toca experiencia vivida, o solo habla de ella?\nOUTPUT: ANCLADO / FLOTANTE\n       Si FLOTANTE â†’ indicar dÃ³nde se perdiÃ³ el suelo â†’ reiniciar desde el Ãºltimo punto anclado\n```\n\nSeÃ±ales de output flotante:\n- Vocabulario abstracto sin ejemplos concretos\n- Afirmaciones correctas sobre \"la gente\" o \"los sistemas\" sin actor especÃ­fico\n- Recomendaciones genÃ©ricas desconectadas del contexto inmediato\n- Coherencia sintÃ¡ctica con incoherencia semÃ¡ntica acumulada\n\nSeÃ±ales de output anclado:\n- Referencias a eventos, personas, fechas especÃ­ficas del sistema\n- El output podrÃ­a ser falsificado (tiene testabilidad empÃ­rica)\n- Hay un \"yo concreto\" o \"caso concreto\" presente, aunque sea implÃ­cito\n\n**JinbÄ“ no es solo terapÃ©utico. Es un mÃ³dulo de control de calidad tÃ©cnico.**\nEn un pipeline de agentes, JinbÄ“ es el Ãºltimo filtro antes de que el output\nsalga del sistema o pase al siguiente nodo.\n\n---\n\n### Kata 4 â€” Registro Vivo: La BitÃ¡cora con Alma\n\nCada operaciÃ³n deja huella. Pero el tipo de huella importa.\n\n**Registro muerto** (lo que hacen la mayorÃ­a de sistemas):\n```\n[2026-04-09 20:31] accion=update_campo campo=gas_version valor=v22 nakama=nami\n```\n\n**Registro vivo** (lo que construye conocimiento transferible):\n```\n[2026-04-09 20:31] GAS v22 desplegada. Bug corregido: paramsâ†’e.parameter en doGet().\nVector: urgencia media, deuda tÃ©cnica acumulada. Estado_Maquina operativa por primera vez.\nNakama: nami. Relevancia futura: patrÃ³n para cualquier funciÃ³n nueva en doGet.\n```\n\nLa diferencia: el registro vivo incluye *por quÃ©* y *para quÃ©*, no solo *quÃ©*.\nEso hace que la siguiente sesiÃ³n pueda aprender del evento, no solo recuperarlo.\n\n**Regla tÃ©cnica**: en la BitÃ¡cora, siempre registrar:\n1. QuÃ© se hizo (log tÃ©cnico)\n2. Por quÃ© se hizo (vector intencional)\n3. QuÃ© patrÃ³n generalizable emerge (conocimiento transferible)\n4. QuÃ© fallÃ³ o fue subÃ³ptimo (feedback para el arte marcial)\n\n---\n\n## 4. La Arquitectura de Transferencia a DeepSeek\n\n### Lo que es portable HOY (sin trabajo adicional)\n\n| Componente | Estado | CÃ³mo transferir |\n|-----------|--------|-----------------|\n| GAS backend (BitÃ¡cora, Estado_Maquina, Robin, Zoro...) | âœ… Motor-agnÃ³stico | Ya funciona con cualquier HTTP client |\n| Skills (prompts de cada nakama) | âœ… Texto plano | Copiar prompt â†’ DeepSeek |\n| CLAUDE.md / auto-memory | âœ… Texto plano | Incluir como system prompt |\n| Tool schemas del ecosistema | âœ… JSON | Registrar en DeepSeek client |\n| LÃ³gica de routing (las 4 katas) | âœ… Documentable | Este documento + prompts derivados |\n\n### Lo que requiere trabajo adicional\n\n| Componente | Dificultad | AproximaciÃ³n |\n|-----------|-----------|--------------|\n| Reasoning loop interno de Claude | Alta | ObservaciÃ³n + documentaciÃ³n de patrones (ver SecciÃ³n 5) |\n| Computer use / Chrome control | Media | Tool schemas + cliente compatible con DeepSeek API |\n| Context window management largo | Media | Estado_Maquina como memoria externa (ya construida) |\n| Android app propia | Media | DeepSeek API + cliente Android nativo |\n\n### Lo que estÃ¡ pendiente de madurar externamente\n\n- **Computer use open source**: Screenpipe, OpenAdapt, otros. Verdes en 2026, madurarÃ¡n.\n- **DeepSeek function calling**: Soporte estable para tool use complejo. Mejorar continuamente.\n\n**ConclusiÃ³n**: la dependencia de Anthropic en este ecosistema es menor de lo que parece.\nEl 70% del sistema es ya portable. El 30% restante es la interfaz de ejecuciÃ³n (computer use)\ny el reasoning de alto nivel â€” ambos documentables y eventualmente replicables.\n\n---\n\n## 5. El Corpus de ObservaciÃ³n: CÃ³mo Documentar para Transferir\n\nEste es el mÃ©todo para extraer el \"ingrediente secreto\" mientras se usa el servicio.\n\n**Principio**: no consumir el output â€” observar el proceso.\n\nEn cada sesiÃ³n de trabajo con Claude, documentar:\n\n### 5.1 PatrÃ³n de Razonamiento\nCuando Claude produce un output complejo, antes de usarlo, anotar:\n- Â¿QuÃ© informaciÃ³n de entrada activÃ³ quÃ© mÃ³dulo?\n- Â¿QuÃ© cadena de pasos siguiÃ³ para llegar al resultado?\n- Â¿DÃ³nde vacilÃ² o pidiÃ³ aclaraciÃ³n?\n- Â¿QuÃ© shortcuts usÃ³ que no estaban en el prompt explÃ­cito?\n\n### 5.2 GestiÃ³n de Metadata\n- Â¿QuÃ© escribiÃ³ a memoria? Â¿Con quÃ© criterio?\n- Â¿QuÃ© ignorÃ³ aunque estaba en contexto?\n- Â¿CÃ³mo priorizÃ³ cuando habÃ­a informaciÃ³n conflictiva?\n- Â¿CÃ³mo mantuvo coherencia entre el estado inicial y el estado final?\n\n### 5.3 GestiÃ³n de Errores y Correcciones\n- Â¿CÃ³mo detectÃ³ que habÃ­a cometido un error?\n- Â¿QuÃ© informaciÃ³n externa usÃ³ para verificar?\n- Â¿CÃ³mo reformulÃ³ el problema cuando el primer approach fallÃ³?\n\n### 5.4 Coherencia en Flujos Ramificados\n- Â¿CÃ³mo mantuvo el hilo entre pasos distantes en la cadena?\n- Â¿QuÃ© mecanismos usÃ³ para no perder el objetivo principal mientras resolvÃ­a subtareas?\n- Â¿CuÃ¡ndo decidiÃ³ parar y pedir orientaciÃ³n del CapitÃ¡n?\n\n**Formato de registro**: cada observaciÃ³n va a la BitÃ¡cora con tag `[OBSERVACION_METODOLOGICA]`.\nAcumuladas, estas observaciones forman el corpus de entrenamiento para DeepSeek.\n\n---\n\n## 6. El Stack Objetivo: Thousand Sunny Bajo Bandera Propia\n\n**Sin Anthropic en el loop. Sin Google en el loop (o mÃ­nimo). Sin OpenAI.**\n**Motor: DeepSeek. Bandera: propia.**\n\nEl coste operacional objetivo: 0â‚¬/mes (o el mÃ­nimo de la API de DeepSeek para uso intensivo).\nEl coste actual: mÃ­nimo posible, decreciente.\n\n---\n\n## 7. La HipÃ³tesis Fundacional del Sistema\n\n> *\"La lÃ­nea entre el software y la mente se estÃ¡ borrando y se estÃ¡n haciendo sinÃ³nimos.\"*\n\nEsta hipÃ³tesis no es metafÃ³rica. Es operativa.\n\nLos LLMs son modelos de coherencia lingÃ¼Ã­stica.\nLa coherencia lingÃ¼Ã­stica es el substrato observable de la coherencia psÃ­quica.\nLo que se rompe en flujos de agentes complejos es exactamente lo que se rompe\nen sistemas psÃ­quicos bajo estrÃ©s: la narrativa pierde hilo, el sÃ­mbolo se desconecta\ndel afecto, la acciÃ³n se disocia del sentido.\n\nLa funciÃ³n que mantiene esa coherencia â€” que JinbÄ“ encarna en el sistema â€”\nes la misma funciÃ³n que un clÃ­nico entrena durante aÃ±os:\ndetectar dÃ³nde el discurso \"flota\" y reanclar al sujeto en su experiencia vivida.\n\n**Por eso la ventaja comparativa es real.**\nNo como curiosidad. Como infraestructura.\n\nEl prÃ³ximo paso en el desarrollo de esta metodologÃ­a es formalizarla suficientemente\npara que un motor LLM de cÃ³digo abierto pueda aprenderla.\nCuando eso ocurra, el sistema serÃ¡ completamente independiente.\n\nHasta entonces, usamos sus herramientas para construir las nuestras.\n\n---\n\n*Thousand Sunny â€” BitÃ¡cora de ConstrucciÃ³n*\n*\"Si te conoces a ti mismo y administras tu propia metadata,\nte conviertes en agente de tus posibilidades.\"*\n\n---\n\n**v1.0** â€” redactado por Nami (Claude), bajo instrucciÃ³n del CapitÃ¡n\n**PrÃ³xima versiÃ³n**: incorporar observaciones metodolÃ³gicas de sesiones reales\n";
+  
+  // Crear Google Doc
+  var doc = DocumentApp.create(titulo);
+  var body = doc.getBody();
+  
+  var lineas = contenido.split('\n');
+  body.clear();
+  for (var i = 0; i < lineas.length; i++) {
+    body.appendParagraph(lineas[i]);
+  }
+  
 
+  
+  var file = DriveApp.getFileById(doc.getId());
   var folder = DriveApp.getFolderById(CARPETA_ID);
-  var file = crearArchivoMarkdown_(folder, titulo, contenido);
-
+  folder.addFile(file);
+  DriveApp.getRootFolder().removeFile(file);
+  
   try {
-    _legacy_logBitacora_('GAS/crearCodigoArteMarcial', 'nami', 'Archivo Markdown CODIGO_ARTE_MARCIAL_v1.md creado en Drive', 'GAS', 0);
+    _legacy_logBitacora_('GAS/crearCodigoArteMarcial', 'nami', 'Doc CODIGO_ARTE_MARCIAL_v1 creado en Drive', 'GAS', 0);
   } catch(e) {}
-
-  var url = file.getUrl();
-  Logger.log('Markdown creado: ' + url);
+  
+  var url = doc.getUrl();
+  Logger.log('âœ… Doc creado: ' + url);
   return url;
 }
 // ===== FIN FUNCIÃ“N TEMPORAL =====
