@@ -19,6 +19,7 @@ La **consola operacional** del Thousand Sunny: la capa de presencia y notificaci
 | `thousand-sunny-bridge.html` | Webapp v1: chat autonomo con APIs directas |
 | `thousand-sunny-gas-autonomo.js` | GAS v1: script autonomo original |
 | `INSTALACION-PATCH-V2.md` | Guia de instalacion del patch v2 |
+| `VEGAPUNK_FRONTERA.md` | Que material NO puede cruzar a la consola, y por que salidas cruzaria |
 
 ## Arquitectura
 
